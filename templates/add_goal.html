@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="goal-form-page">
+
+    <div class="goal-form-header">
+
+        <div class="page-eyebrow">
+            FINANCIAL PLANNING
+        </div>
+
+        <h1>Create a Goal</h1>
+
+        <p>
+            Give yourself something worth working toward.
+        </p>
+
+    </div>
+
+
+    <div class="goal-form-card">
+
+        {% if error %}
+            <div class="form-error">
+                {{ error }}
+            </div>
+        {% endif %}
+
+
+        <form method="POST">
+
+            <div class="form-group">
+
+                <label for="name">
+                    Goal Name
+                </label>
+
+                <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    placeholder="e.g. MacBook, Car, Trip"
+                    required
+                >
+
+            </div>
+
+
+            <div class="form-row">
+
+                <div class="form-group">
+
+                    <label for="target_amount">
+                        Target Amount
+                    </label>
+
+                    <input
+                        type="number"
+                        id="target_amount"
+                        name="target_amount"
+                        placeholder="150000"
+                        min="1"
+                        step="0.01"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="current_amount">
+                        Already Saved
+                    </label>
+
+                    <input
+                        type="number"
+                        id="current_amount"
+                        name="current_amount"
+                        placeholder="40000"
+                        min="0"
+                        step="0.01"
+                        value="0"
+                        required
+                    >
+
+                </div>
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label for="target_date">
+                    Target Date
+                </label>
+
+                <input
+                    type="date"
+                    id="target_date"
+                    name="target_date"
+                    required
+                >
+
+            </div>
+
+
+            <div class="goal-form-actions">
+
+                <a href="/goals" class="form-cancel">
+                    Cancel
+                </a>
+
+                <button
+                    type="submit"
+                    class="hero-button"
+                >
+                    Create Goal →
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+{% endblock %}

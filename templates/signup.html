@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="auth-screen"><div class="auth-card-modern">
+<div class="auth-brand-mark">S</div><span class="eyebrow">START FRESH</span>
+<h1>Create your Sigora.</h1><p class="auth-subtitle">Build a clearer picture of where your money goes.</p>
+{% if error %}<div class="auth-error">{{ error }}</div>{% endif %}
+<form method="POST" class="auth-form">
+<label for="name">Name</label><input id="name" type="text" name="name" placeholder="Your name" autocomplete="name" required>
+<label for="email">Email</label><input id="email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required>
+<label for="country">Country</label>
+<select id="country" name="country" required onchange="setSignupCurrency()">{% for c in countries %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+<small id="currencyHint" class="settings-muted">Currency: INR — ₹</small>
+<label for="password">Password</label><input id="password" type="password" name="password" placeholder="At least 8 characters" autocomplete="new-password" minlength="8" required>
+<button type="submit" class="auth-submit">Create Account <span>→</span></button>
+</form><p class="auth-switch">Already have an account? <a href="/login">Log in</a></p>
+</div></div>
+<script>
+const countryCurrencies={{ country_currencies|tojson }};
+function setSignupCurrency(){const c=document.getElementById('country').value;const v=countryCurrencies[c]||['INR','₹'];document.getElementById('currencyHint').textContent='Currency: '+v[0]+' — '+v[1];}
+setSignupCurrency();
+</script>
+{% endblock %}

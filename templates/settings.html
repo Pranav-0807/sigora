@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="settings-page">
+    <div class="settings-hero">
+        <div>
+            <span class="eyebrow">CONTROL CENTRE</span>
+            <h1>Settings</h1>
+            <p>Make Sigora work the way you want.</p>
+        </div>
+        {% if settings.is_premium %}<span class="premium-pill">✦ PREMIUM</span>{% endif %}
+    </div>
+
+    {% if error %}<div class="settings-message error">{{ error }}</div>{% endif %}
+    {% if request.args.get('saved') %}<div class="settings-message success">Settings saved.</div>{% endif %}
+    {% if request.args.get('support') == 'sent' %}<div class="settings-message success">Support request received. We'll follow up using the email you provided.</div>{% endif %}
+
+    <div class="settings-grid">
+        <section class="settings-card settings-card-wide">
+            <div class="settings-card-heading"><div><span class="settings-label">ACCOUNT</span><h2>Your profile</h2></div><span class="settings-icon">◉</span></div>
+            <form method="POST" class="settings-form">
+                <input type="hidden" name="action" value="preferences">
+                <div class="settings-form-grid">
+                    <label>Name<input type="text" name="name" value="{{ settings.name }}" required></label>
+                    <label>Email<input type="email" value="{{ settings.email }}" disabled></label>
+                    <label>Country<select name="country" onchange="syncSettingsCurrency(this.value)">{% for c in sigora_countries %}<option value="{{ c }}" {% if settings.country == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+                    <label>Currency<select id="settingsCurrency" name="currency">{% for code,symbol in currency_options %}<option value="{{ code }}" {% if settings.currency == code %}selected{% endif %}>{{ code }} — {{ symbol }}</option>{% endfor %}</select></label>
+                </div>
+                <button class="hero-button" type="submit">Save profile</button>
+            </form>
+        </section>
+
+        <section class="settings-card">
+            <div class="settings-card-heading"><div><span class="settings-label">ALERTS</span><h2>Notifications</h2></div><span class="settings-icon">◌</span></div>
+            <form method="POST" class="settings-form">
+                <input type="hidden" name="action" value="preferences">
+                <input type="hidden" name="name" value="{{ settings.name }}"><input type="hidden" name="currency" value="{{ settings.currency }}"><input type="hidden" name="country" value="{{ settings.country }}">
+                {% for key, label, text in [('notification_email_enabled','Email alerts','Send alerts to your account email.'),('budget_alerts_enabled','Budget alerts','Warn me when a budget reaches 80% or is exceeded.'),('goal_alerts_enabled','Goal reminders','Remind me about approaching goals and completions.'),('ai_alerts_enabled','AI alerts','Reserve AI-driven notifications for future intelligence alerts.')] %}
+                <label class="toggle-row"><span><strong>{{ label }}</strong><small>{{ text }}</small></span><input type="checkbox" name="{{ key }}" {% if settings[key] %}checked{% endif %}><i></i></label>
+                {% endfor %}
+                <button class="settings-action-button" type="submit">Save notification settings</button>
+            </form>
+        </section>
+
+        <section class="settings-card">
+            <div class="settings-card-heading"><div><span class="settings-label">PREMIUM</span><h2>Sigora Premium</h2></div><span class="settings-icon">✦</span></div>
+            <p class="settings-muted">Launch price</p><div class="premium-price">{{ premium_currency_symbol }}{{ "%.0f"|format(premium_price) }}<span>/month</span></div>
+            <ul class="premium-mini-list">{% for name, text in premium_features[:5] %}<li><span>✓</span><div><strong>{{ name }}</strong><small>{{ text }}</small></div></li>{% endfor %}</ul>
+            <a href="/premium" class="premium-button">Explore Premium →</a>
+        </section>
+
+        <section class="settings-card">
+            <div class="settings-card-heading"><div><span class="settings-label">SECURITY</span><h2>Change password</h2></div><span class="settings-icon">◆</span></div>
+            <form method="POST" class="settings-form">
+                <input type="hidden" name="action" value="password">
+                <label>Current password<input type="password" name="current_password" autocomplete="current-password" required></label>
+                <label>New password<input type="password" name="new_password" minlength="8" autocomplete="new-password" required></label>
+                <label>Confirm new password<input type="password" name="confirm_password" minlength="8" autocomplete="new-password" required></label>
+                <button class="settings-action-button" type="submit">Update password</button>
+            </form>
+        </section>
+
+        <section class="settings-card">
+            <div class="settings-card-heading"><div><span class="settings-label">DATA</span><h2>Your data</h2></div><span class="settings-icon">⇅</span></div>
+            <a class="settings-list-action" href="/import-transactions"><span><strong>Import transactions</strong><small>CSV, Excel and PDF bank statements</small></span><b>→</b></a>
+            <a class="settings-list-action" href="/transactions"><span><strong>Export transactions</strong><small>Download filtered data as CSV or Excel</small></span><b>→</b></a>
+            <a class="settings-list-action" href="/logout"><span><strong>Log out</strong><small>End this session</small></span><b>→</b></a>
+        </section>
+
+
+        <section class="settings-card">
+            <div class="settings-card-heading"><div><span class="settings-label">SUPPORT</span><h2>Questions or issues?</h2></div><span class="settings-icon">?</span></div>
+            <p class="settings-muted">{% if support_email %}Contact {{ support_email }} or send a message below.{% else %}No dedicated Sigora support email is connected yet. Your message is stored securely and can be connected later.{% endif %}</p>
+            <form method="POST" class="settings-form">
+                <input type="hidden" name="action" value="support">
+                <label>Your email<input type="email" name="email" value="{{ settings.email }}" required></label>
+                <label>Issue type<select name="issue_type"><option>General question</option><option>Bug report</option><option>Premium</option><option>Payments</option><option>AI / Insights</option><option>Import / Export</option></select></label>
+                <label>Message<textarea name="message" rows="4" required placeholder="Tell us what you need help with..."></textarea></label>
+                <button class="settings-action-button" type="submit">Send to Sigora</button>
+            </form>
+        </section>
+
+        <section class="settings-card">
+            <div class="settings-card-heading"><div><span class="settings-label">SMS</span><h2>SMS alerts</h2></div><span class="settings-icon">⌁</span></div>
+            <label class="toggle-row sms-disabled-row" onclick="showSmsComingSoon(event)"><span><strong>SMS notifications</strong><small>Budget and goal alerts by text message.</small></span><input type="checkbox" disabled><i></i></label>
+            <p class="settings-muted">SMS is intentionally disabled for now. You will not be charged for SMS.</p>
+        </section>
+
+        <section class="settings-card danger-card">
+            <div class="settings-card-heading"><div><span class="settings-label danger-label">DANGER ZONE</span><h2>Delete account</h2></div></div>
+            <p>This permanently removes your account and all associated financial data.</p>
+            <form method="POST" onsubmit="return confirm('Delete your Sigora account permanently? This cannot be undone.');"><input type="hidden" name="action" value="delete_account"><button class="danger-button" type="submit">Delete my account</button></form>
+        </section>
+    </div>
+</div>
+<script>
+const settingsCurrencies={{ country_currencies|tojson }};
+function syncSettingsCurrency(country){const x=settingsCurrencies[country];if(x){document.getElementById('settingsCurrency').value=x[0];}}
+</script>
+{% endblock %}
+
+<script>function showSmsComingSoon(e){e.preventDefault(); alert('SMS Alerts Coming Soon\n\nSMS notifications are not active yet. We will enable them when the Sigora SMS service is ready.');}</script>

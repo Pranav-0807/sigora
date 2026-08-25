@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="settings-page">
+  <div class="settings-hero">
+    <div>
+      <span class="eyebrow">CONNECTED FINANCES</span>
+      <h1>Bank accounts</h1>
+      <p>Automatic bank syncing is being prepared for Sigora.</p>
+    </div>
+  </div>
+
+  <div class="settings-grid">
+    <section class="settings-card settings-card-wide">
+      <div class="settings-card-heading">
+        <div>
+          <span class="settings-label">COMING SOON</span>
+          <h2>Automatic Bank Sync</h2>
+        </div>
+        <span class="settings-icon">🏦</span>
+      </div>
+
+      <p class="settings-muted">
+        Sigora is preparing secure, consent-based Indian bank connections through the Account Aggregator ecosystem.
+        Live connectivity requires regulated FIU/provider onboarding, so it is not enabled for public beta users yet.
+      </p>
+
+      <div class="settings-message" style="margin-top:16px">
+        Sigora never asks for or stores your bank password, OTP, or UPI PIN.
+      </div>
+
+      <div style="margin-top:22px">
+        <a class="hero-button" href="/import-transactions">Import bank statement →</a>
+      </div>
+
+      <p class="settings-muted" style="margin-top:14px">
+        You can already import supported CSV, Excel and PDF bank statements. Sigora will detect transactions, avoid duplicates and add them to your existing dashboard and reports.
+      </p>
+    </section>
+
+    <section class="settings-card settings-card-wide">
+      <div class="settings-card-heading">
+        <div>
+          <span class="settings-label">WHAT'S NEXT</span>
+          <h2>Designed for secure account syncing</h2>
+        </div>
+        <span class="settings-icon">↻</span>
+      </div>
+      <p class="settings-muted">
+        When provider onboarding is complete, this page can activate consent-based account connection and automatic transaction syncing without changing the rest of your Sigora data model.
+      </p>
+    </section>
+  </div>
+</div>
+{% endblock %}

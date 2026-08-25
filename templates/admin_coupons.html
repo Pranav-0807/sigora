@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="settings-page"><div class="settings-hero"><div><span class="eyebrow">ADMIN</span><h1>Coupons</h1><p>Create and activate promotions without changing code.</p></div></div>
+<section class="settings-card">
+<form method="POST" class="settings-form"><input type="hidden" name="action" value="create">
+<label>Code<input name="code" placeholder="WELCOME50" required></label>
+<label>Discount type<select name="discount_type"><option value="percent">Percent</option><option value="fixed">Fixed amount</option></select></label>
+<label>Discount value<input type="number" name="discount_value" min="0.01" step="0.01" required></label>
+<label>Maximum uses<input type="number" name="max_uses" min="1" placeholder="Unlimited"></label>
+<label>Valid until<input type="datetime-local" name="valid_until"></label><label>Razorpay offer ID (required for checkout discount)<input name="razorpay_offer_id" placeholder="offer_..."></label><p class="settings-muted">For “first month only”, configure the linked Razorpay Offer to apply for exactly one billing cycle. Sigora will not fake a discount outside Razorpay.</p>
+<label class="toggle-row"><span><strong>First month only</strong></span><input type="checkbox" name="first_month_only"><i></i></label>
+<button class="hero-button" type="submit">Create coupon</button></form>
+</section>
+<section class="settings-card"><h2>Existing coupons</h2>
+{% for c in coupons %}<div class="goal-big-row"><div><strong>{{ c[1] }}</strong><small>{{ c[2] }} {{ c[3] }} · {{ c[6] or 'No expiry' }}</small></div><form method="POST"><input type="hidden" name="action" value="toggle"><input type="hidden" name="coupon_id" value="{{ c[0] }}"><input type="hidden" name="active" value="{{ 0 if c[8] else 1 }}"><button class="settings-action-button" type="submit">{{ 'Disable' if c[8] else 'Enable' }}</button></form></div>{% else %}<p class="settings-muted">No coupons yet.</p>{% endfor %}
+</section></div>
+{% endblock %}

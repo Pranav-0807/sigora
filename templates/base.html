@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sigora</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    {% if ga4_measurement_id %}
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga4_measurement_id }}"></script>
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','{{ ga4_measurement_id }}');</script>
+    {% endif %}
+</head>
+<body class="{{ 'auth-page' if request.path in ['/login', '/signup'] else '' }}">
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">S</div>
+            <span>SIGORA</span>
+        </div>
+
+        <nav class="sidebar-nav">
+            {% if session.get("user_id") %}
+            <a href="/" class="nav-item"><span>⌂</span><span>Home</span></a>
+            <a href="/dashboard" class="nav-item"><span>◉</span><span>Dashboard</span></a>
+            <a href="/transactions" class="nav-item"><span>↔</span><span>Transactions</span></a>
+            <a href="/reports" class="nav-item"><span>▥</span><span>Reports</span></a>
+            <a href="/budgets" class="nav-item"><span>◫</span><span>Budgets</span></a>
+            <a href="/goals" class="nav-item"><span>◎</span><span>Goals</span></a>
+            <a href="/invest" class="nav-item"><span>↗</span><span>Invest</span></a>
+            <a href="/import-transactions" class="nav-item"><span>⇧</span><span>Import</span></a>
+            <a href="/insights" class="nav-item"><span>✦</span><span>Insights</span></a>
+            <a href="/accounts" class="nav-item"><span>🏦</span><span>Bank accounts</span></a>
+            <a href="/settings" class="nav-item"><span>⚙</span><span>Settings</span></a>
+            {% endif %}
+        </nav>
+
+        <div class="sidebar-footer">
+            <a href="/premium" class="premium-sidebar-link">
+                <span>✦</span> Premium · {{ premium_currency_symbol }}{{ "%.0f"|format(premium_price) }}/mo
+            </a>
+{% if session.get("user_id") %}
+            <a href="/logout" class="logout-button"><span>↪</span> Logout</a>
+            {% endif %}
+            <div class="version"><span class="status-dot"></span> Sigora v1.1</div>
+        </div>
+    </aside>
+
+    {% if session.get("user_id") %}
+    <nav class="mobile-nav">
+        <a href="/dashboard"><span>◉</span><small>Home</small></a>
+        <a href="/transactions"><span>↔</span><small>Money</small></a>
+        <a href="/budgets"><span>◫</span><small>Budget</small></a>
+        <a href="/goals"><span>◎</span><small>Goals</small></a>
+        <a href="/invest"><span>↗</span><small>Invest</small></a>
+        <a href="/import-transactions"><span>⇧</span><small>Import</small></a>
+        <a href="/accounts"><span>🏦</span><small>Bank</small></a>
+        <a href="/insights"><span>✦</span><small>AI</small></a>
+        <a href="/settings"><span>⚙</span><small>Settings</small></a>
+    </nav>
+    {% endif %}
+
+    <main class="main-content">
+        <header class="topbar">
+            <div><span class="topbar-label">PERSONAL FINANCE</span><button class="tutorial-trigger" type="button" onclick="document.getElementById('tutorialModal').classList.add('show')">▶ How Sigora works</button></div>
+            <div class="topbar-right">
+                <a href="/premium" class="topbar-premium">{{ premium_currency_symbol }}{{ "%.0f"|format(premium_price) }} Premium</a>
+                <span class="live-indicator"><span class="status-dot"></span>Live</span>
+            </div>
+        </header>
+
+        <section class="page-content">
+            {% block content %}{% endblock %}
+        </section>
+        <footer class="site-footer">
+            <span>© 2026 Sigora · Public Beta</span>
+            <nav aria-label="Legal and support">
+                <a href="/privacy">Privacy</a>
+                <a href="/terms">Terms</a>
+                <a href="/financial-disclaimer">Financial Disclaimer</a>
+                <a href="/support">Support</a>
+            </nav>
+        </footer>
+    </main>
+</div>
+
+{% set celebration = request.args.get('celebration') %}
+{% if celebration %}
+<div class="celebration-overlay" id="celebrationOverlay">
+    <div class="celebration-card">
+        <div class="celebration-spark">✦</div>
+        {% if celebration == 'goal-complete' %}
+            <span class="eyebrow">MILESTONE UNLOCKED</span>
+            <h2>Goal completed! 🎉</h2>
+            <p>You just turned a financial target into a finished goal.</p>
+        {% elif celebration == 'goal' %}
+            <span class="eyebrow">GOAL MOMENTUM</span>
+            <h2>Goal saved! 🎯</h2>
+            <p>Another step toward the money you want.</p>
+        {% elif celebration == 'budget' %}
+            <span class="eyebrow">MONEY CONTROL</span>
+            <h2>Budget managed! 💚</h2>
+            <p>You're giving every rupee a job.</p>
+        {% else %}
+            <span class="eyebrow">GOOD HABIT</span>
+            <h2>Nice move! ✦</h2>
+            <p>Your financial activity just earned progress.</p>
+        {% endif %}
+        <button type="button" class="hero-button" onclick="document.getElementById('celebrationOverlay').remove()">Keep going</button>
+    </div>
+</div>
+<script>
+setTimeout(() => {
+    const el = document.getElementById('celebrationOverlay');
+    if (el) el.classList.add('celebration-hide');
+}, 5000);
+</script>
+{% endif %}
+
+
+<div class="tutorial-modal" id="tutorialModal" aria-hidden="true">
+  <div class="tutorial-backdrop" onclick="closeTutorial()"></div>
+  <div class="tutorial-window tutorial-video-window">
+    <button class="tutorial-close" type="button" onclick="closeTutorial()">×</button>
+    <div class="tutorial-video-heading"><span class="eyebrow">QUICK START</span><h2>How Sigora works</h2><p>A 12-second tour of the core workflow.</p></div>
+    <video class="tutorial-video" controls muted playsinline preload="metadata">
+      <source src="{{ url_for('static', filename='media/sigora-tutorial.mp4') }}" type="video/mp4">
+      Your browser does not support the tutorial video.
+    </video>
+    <div class="tutorial-controls"><span>Track → Plan → Understand → Improve</span><button class="hero-button" type="button" onclick="closeTutorial()">Got it ✓</button></div>
+  </div>
+</div>
+
+<script>function closeTutorial(){const m=document.getElementById('tutorialModal'); if(m){m.classList.remove('show'); const v=m.querySelector('video'); if(v) v.pause();}}</script>
+</body>
+</html>

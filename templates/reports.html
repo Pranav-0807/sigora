@@ -1,0 +1,2152 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<style>
+
+    * {
+        box-sizing: border-box;
+    }
+
+    .reports-container {
+        max-width: 1150px;
+        margin: 0 auto;
+        padding: 30px 20px 60px;
+    }
+
+    /* =========================
+       HEADER
+    ========================= */
+
+    .reports-header {
+        margin-bottom: 30px;
+    }
+
+    .reports-header h2 {
+        font-size: 34px;
+        margin: 0 0 8px;
+        color: #111;
+    }
+
+    .reports-header p {
+        margin: 0;
+        color: #777;
+        font-size: 16px;
+    }
+
+
+    /* =========================
+       SUMMARY CARDS
+    ========================= */
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin-bottom: 25px;
+    }
+
+    .summary-card {
+        background: white;
+        border-radius: 18px;
+        padding: 24px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
+
+        opacity: 0;
+        transform: translateY(20px);
+
+        animation: cardAppear 0.7s ease forwards;
+    }
+
+    .summary-card:nth-child(1) {
+        animation-delay: 0.1s;
+    }
+
+    .summary-card:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+
+    .summary-card:nth-child(3) {
+        animation-delay: 0.3s;
+    }
+
+    .summary-label {
+        color: #777;
+        font-size: 14px;
+        margin-bottom: 10px;
+    }
+
+    .summary-value {
+        font-size: 27px;
+        font-weight: 700;
+    }
+
+    .income-value {
+        color: #16803c;
+    }
+
+    .expense-value {
+        color: #d63c32;
+    }
+
+    .balance-value {
+        color: #111;
+    }
+
+
+    /* =========================
+       CHART CARDS
+    ========================= */
+
+    .chart-card {
+        background: white;
+        border-radius: 18px;
+        padding: 28px;
+        margin-bottom: 25px;
+
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
+
+        opacity: 0;
+        transform: translateY(25px);
+
+        animation: chartAppear 0.8s ease forwards;
+        animation-delay: 0.35s;
+    }
+
+    .chart-card h3 {
+        margin: 0 0 6px;
+        color: #111;
+        font-size: 22px;
+    }
+
+    .chart-card > p {
+        margin: 0 0 20px;
+        color: #777;
+    }
+
+    .chart-wrapper {
+        position: relative;
+        height: 360px;
+    }
+
+    .monthly-wrapper {
+        height: 400px;
+    }
+
+
+    /* =========================
+       MONTH FOCUS
+    ========================= */
+
+    .month-focus {
+        display: none;
+        margin-top: 20px;
+        padding: 18px 20px;
+        background: #f7f7f7;
+        border-radius: 14px;
+
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    .month-focus.show {
+        display: block;
+        animation: focusAppear 0.5s ease forwards;
+    }
+
+    .month-focus strong {
+        color: #111;
+    }
+
+
+    /* =========================
+       CATEGORY SECTION
+    ========================= */
+
+    .period-buttons {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+
+    .period-button {
+        border: none;
+        background: #eeeeee;
+        color: #333;
+        padding: 10px 17px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: 0.25s ease;
+    }
+
+    .period-button:hover {
+        transform: translateY(-2px);
+    }
+
+    .period-button.active {
+        background: #111;
+        color: white;
+    }
+
+    .category-layout {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 30px;
+        align-items: center;
+    }
+
+    .category-chart-wrapper {
+        position: relative;
+        height: 380px;
+    }
+
+    .category-insight {
+        background: #f7f7f7;
+        border-radius: 16px;
+        padding: 25px;
+
+        transition: 0.4s ease;
+    }
+
+    .category-insight.update {
+        animation: insightUpdate 0.5s ease;
+    }
+
+    .category-insight h4 {
+        margin-top: 0;
+        font-size: 18px;
+    }
+
+    .category-insight p {
+        color: #666;
+        line-height: 1.6;
+    }
+
+
+    /* =========================
+       BASIC INSIGHT
+    ========================= */
+
+    .basic-insight {
+        background: #111;
+        color: white;
+        border-radius: 18px;
+        padding: 25px;
+        margin-bottom: 25px;
+
+        opacity: 0;
+        animation: chartAppear 0.8s ease forwards;
+        animation-delay: 0.5s;
+    }
+
+    .basic-insight h3 {
+        margin: 0 0 8px;
+    }
+
+    .basic-insight p {
+        margin: 0;
+        color: #ddd;
+        line-height: 1.6;
+    }
+
+
+    /* =========================
+       ZOOM MODAL
+    ========================= */
+
+    .month-zoom {
+        position: fixed;
+        inset: 0;
+
+        background: rgba(0, 0, 0, 0.65);
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        padding: 20px;
+
+        opacity: 0;
+        visibility: hidden;
+
+        transition:
+            opacity 0.35s ease,
+            visibility 0.35s ease;
+
+        z-index: 9999;
+    }
+
+    .month-zoom.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .zoom-card {
+        width: min(720px, 100%);
+        background: white;
+        border-radius: 25px;
+        padding: 35px;
+
+        transform: scale(0.75);
+        opacity: 0;
+
+        transition:
+            transform 0.55s cubic-bezier(.2,.8,.2,1),
+            opacity 0.4s ease;
+    }
+
+    .month-zoom.active .zoom-card {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    .zoom-label {
+        font-size: 13px;
+        color: #777;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+    }
+
+    .zoom-title {
+        font-size: 34px;
+        font-weight: 700;
+        color: #111;
+        margin-bottom: 25px;
+    }
+
+    .zoom-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin-bottom: 25px;
+    }
+
+    .zoom-stat {
+        background: #f7f8fa;
+        border-radius: 16px;
+        padding: 22px;
+    }
+
+    .zoom-stat span {
+        display: block;
+        color: #777;
+        margin-bottom: 8px;
+    }
+
+    .zoom-stat strong {
+        font-size: 25px;
+    }
+
+    .zoom-income {
+        color: #16803c;
+    }
+
+    .zoom-expense {
+        color: #d63c32;
+    }
+
+    .continue-button {
+        width: 100%;
+        border: none;
+        background: #111;
+        color: white;
+
+        padding: 15px;
+        border-radius: 12px;
+
+        font-size: 16px;
+        cursor: pointer;
+
+        transition: 0.25s ease;
+    }
+
+    .continue-button:hover {
+        transform: translateY(-2px);
+        background: #222;
+    }
+
+    .close-button {
+        margin-top: 12px;
+        width: 100%;
+        border: none;
+        background: transparent;
+        color: #777;
+        padding: 10px;
+        cursor: pointer;
+    }
+
+
+    /* =========================
+       ANIMATIONS
+    ========================= */
+
+    @keyframes cardAppear {
+
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+    }
+
+    @keyframes chartAppear {
+
+        from {
+            opacity: 0;
+            transform: translateY(25px) scale(0.98);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+    }
+
+    @keyframes focusAppear {
+
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+    }
+
+    @keyframes insightUpdate {
+
+        0% {
+            opacity: 0.3;
+            transform: scale(0.98);
+        }
+
+        100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+    }
+
+
+    /* =========================
+       MOBILE
+    ========================= */
+
+    @media (max-width: 850px) {
+
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .category-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .reports-header h2 {
+            font-size: 28px;
+        }
+
+        .chart-wrapper,
+        .monthly-wrapper,
+        .category-chart-wrapper {
+            height: 300px;
+        }
+
+        .zoom-stats {
+            grid-template-columns: 1fr;
+        }
+
+    }
+
+</style>
+
+
+<div class="reports-container">
+
+
+    <!-- =========================
+         HEADER
+    ========================= -->
+
+    <div class="reports-header">
+
+        <h2>Reports</h2>
+
+        <p>
+            Understand where your money is going.
+        </p>
+
+    </div>
+
+
+    <!-- =========================
+         HIDDEN DATA
+    ========================= -->
+
+    <div
+        id="report-data"
+        data-income="{{ report.total_income }}"
+        data-expenses="{{ report.total_expense }}"
+        style="display:none;"
+    ></div>
+
+
+    <div
+        id="monthly-report-data"
+        data-monthly='{{ monthly_report | tojson }}'
+        style="display:none;"
+    ></div>
+
+
+    <div
+        id="category-report-data"
+        data-categories='{{ category_report | tojson }}'
+        style="display:none;"
+    ></div>
+
+
+    <!-- =========================
+         SUMMARY
+    ========================= -->
+
+    <div class="summary-grid">
+
+        <div class="summary-card">
+
+            <div class="summary-label">
+                Total Income
+            </div>
+
+            <div class="summary-value income-value">
+
+                {{ currency_symbol }}{{ "%.2f"|format(report.total_income) }}
+
+            </div>
+
+        </div>
+
+
+        <div class="summary-card">
+
+            <div class="summary-label">
+                Total Expenses
+            </div>
+
+            <div class="summary-value expense-value">
+
+                {{ currency_symbol }}{{ "%.2f"|format(report.total_expense) }}
+
+            </div>
+
+        </div>
+
+
+        <div class="summary-card">
+
+            <div class="summary-label">
+                Net Savings
+            </div>
+
+            <div class="summary-value balance-value">
+
+                {{ currency_symbol }}{{ "%.2f"|format(balance) }}
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- =========================
+         BASIC INSIGHT
+    ========================= -->
+
+    <div class="basic-insight">
+
+        <h3>💡 Sigora</h3>
+
+        <p id="basicInsightText">
+            Analyzing your spending...
+        </p>
+
+    </div>
+
+
+    <!-- =========================
+         OVERALL CHART
+    ========================= -->
+
+    <div class="chart-card">
+
+        <h3>
+            Income vs Expenses
+        </h3>
+
+        <p>
+            Your overall financial picture.
+        </p>
+
+        <div class="chart-wrapper">
+
+            <canvas id="incomeExpenseChart"></canvas>
+
+        </div>
+
+    </div>
+
+
+    <!-- =========================
+         MONTHLY CHART
+    ========================= -->
+
+    <div class="chart-card">
+
+        <h3>
+            Monthly Analysis
+        </h3>
+
+        <p>
+            Click a month to explore it.
+        </p>
+
+        <div class="chart-wrapper monthly-wrapper">
+
+            <canvas id="monthlyChart"></canvas>
+
+        </div>
+
+        <div
+            id="monthFocus"
+            class="month-focus"
+        ></div>
+
+    </div>
+
+
+    <!-- =========================
+         CATEGORY REPORT
+    ========================= -->
+
+    <div class="chart-card">
+
+        <h3>
+            Where Your Money Goes
+        </h3>
+
+        <p id="categoryDescription">
+            Your spending by category.
+        </p>
+
+
+        <div class="period-buttons">
+
+            <button
+                class="period-button active"
+                data-period="current"
+            >
+                This Month
+            </button>
+
+            <button
+                class="period-button"
+                data-period="previous"
+            >
+                Last Month
+            </button>
+
+            <button
+                class="period-button"
+                data-period="year"
+            >
+                This Year
+            </button>
+
+        </div>
+
+
+        <div class="category-layout">
+
+            <div class="category-chart-wrapper">
+
+                <canvas id="categoryChart"></canvas>
+
+            </div>
+
+
+            <div
+                id="categoryInsight"
+                class="category-insight"
+            >
+
+                <h4>
+                    💡 Spending Breakdown
+                </h4>
+
+                <p>
+                    Loading your spending analysis...
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================
+     MONTH ZOOM MODAL
+========================= -->
+
+<div
+    id="monthZoom"
+    class="month-zoom"
+>
+
+    <div class="zoom-card">
+
+        <div class="zoom-label">
+            Month Focus
+        </div>
+
+        <div
+            id="zoomMonth"
+            class="zoom-title"
+        >
+            Month
+        </div>
+
+
+        <div class="zoom-stats">
+
+            <div class="zoom-stat">
+
+                <span>
+                    Income
+                </span>
+
+                <strong
+                    id="zoomIncome"
+                    class="zoom-income"
+                >
+                    {{ currency_symbol }}0.00
+                </strong>
+
+            </div>
+
+
+            <div class="zoom-stat">
+
+                <span>
+                    Expenses
+                </span>
+
+                <strong
+                    id="zoomExpense"
+                    class="zoom-expense"
+                >
+                    {{ currency_symbol }}0.00
+                </strong>
+
+            </div>
+
+        </div>
+
+
+        <button
+            id="continueMonthly"
+            class="continue-button"
+        >
+            Continue to Monthly Analysis
+        </button>
+
+
+        <button
+            id="zoomClose"
+            class="close-button"
+        >
+            Close
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================
+     CHART.JS
+========================= -->
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+
+    /* =====================================================
+       DATA
+    ===================================================== */
+
+    const reportData =
+        document.getElementById("report-data");
+
+    const income =
+        parseFloat(reportData.dataset.income) || 0;
+
+    const expenses =
+        parseFloat(reportData.dataset.expenses) || 0;
+
+
+    const monthlyDataElement =
+        document.getElementById(
+            "monthly-report-data"
+        );
+
+    const categoryDataElement =
+        document.getElementById(
+            "category-report-data"
+        );
+
+
+    let monthlyData = [];
+
+    let categoryData = [];
+
+
+    try {
+
+        monthlyData =
+            JSON.parse(
+                monthlyDataElement.dataset.monthly
+            ) || [];
+
+    } catch (error) {
+
+        console.error(
+            "Monthly report data error:",
+            error
+        );
+
+    }
+
+
+    try {
+
+        categoryData =
+            JSON.parse(
+                categoryDataElement.dataset.categories
+            ) || [];
+
+    } catch (error) {
+
+        console.error(
+            "Category report data error:",
+            error
+        );
+
+    }
+
+
+    /* =====================================================
+       MONTH NAMES
+    ===================================================== */
+
+    const monthNames = [
+
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December"
+
+    ];
+
+
+    /* =====================================================
+       OVERALL CHART
+    ===================================================== */
+
+    const overallCanvas =
+        document.getElementById(
+            "incomeExpenseChart"
+        );
+
+
+    new Chart(
+
+        overallCanvas.getContext("2d"),
+
+        {
+
+            type: "bar",
+
+            data: {
+
+                labels: [
+                    "Income",
+                    "Expenses"
+                ],
+
+                datasets: [{
+
+                    data: [
+                        income,
+                        expenses
+                    ],
+
+                    backgroundColor: [
+                        "#A3FF12",
+                        "#FF5C5C"
+                    ],
+
+                    borderRadius: 12,
+
+                    maxBarThickness: 110
+
+                }]
+
+            },
+
+            options: {
+
+                responsive: true,
+
+                maintainAspectRatio: false,
+
+                animation: {
+
+                    duration: 1500,
+
+                    easing: "easeOutQuart"
+
+                },
+
+                plugins: {
+
+                    legend: {
+                        display: false
+                    }
+
+                },
+
+                scales: {
+
+                    x: {
+
+                        ticks: {
+                            color: "#333"
+                        }
+
+                    },
+
+                    y: {
+
+                        beginAtZero: true,
+
+                        ticks: {
+
+                            color: "#555",
+
+                            callback: function (value) {
+
+                                return "{{ currency_symbol }}" +
+                                    Number(value).toLocaleString("en-IN");
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    );
+
+
+    /* =====================================================
+       MONTHLY CHART
+    ===================================================== */
+
+    const monthlyLabels = [];
+
+    const monthlyIncome = [];
+
+    const monthlyExpenses = [];
+
+
+    monthlyData.forEach(function (item) {
+
+        const monthNumber =
+            Number(item.month);
+
+        monthlyLabels.push(
+            monthNames[monthNumber - 1] ||
+            "Unknown"
+        );
+
+        monthlyIncome.push(
+            Number(item.income) || 0
+        );
+
+        monthlyExpenses.push(
+            Number(item.expense) || 0
+        );
+
+    });
+
+
+    const monthlyCanvas =
+        document.getElementById(
+            "monthlyChart"
+        );
+
+
+    const monthlyChart =
+
+        new Chart(
+
+            monthlyCanvas.getContext("2d"),
+
+            {
+
+                type: "bar",
+
+                data: {
+
+                    labels: monthlyLabels,
+
+                    datasets: [
+
+                        {
+
+                            label: "Income",
+
+                            data: monthlyIncome,
+
+                            backgroundColor:
+                                "#A3FF12",
+
+                            borderRadius: 8,
+
+                            maxBarThickness: 38
+
+                        },
+
+                        {
+
+                            label: "Expenses",
+
+                            data: monthlyExpenses,
+
+                            backgroundColor:
+                                "#FF5C5C",
+
+                            borderRadius: 8,
+
+                            maxBarThickness: 38
+
+                        }
+
+                    ]
+
+                },
+
+                options: {
+
+                    responsive: true,
+
+                    maintainAspectRatio: false,
+
+                    interaction: {
+
+                        mode: "index",
+
+                        intersect: false
+
+                    },
+
+                    animation: {
+
+                        duration: 1800,
+
+                        easing: "easeOutQuart"
+
+                    },
+
+                    plugins: {
+
+                        legend: {
+
+                            labels: {
+                                color: "#333"
+                            }
+
+                        },
+
+                        tooltip: {
+
+                            callbacks: {
+
+                                label: function (context) {
+
+                                    return (
+                                        context.dataset.label +
+                                        ": {{ currency_symbol }}" +
+                                        Number(
+                                            context.raw
+                                        ).toLocaleString(
+                                            "en-IN",
+                                            {
+                                                minimumFractionDigits: 2
+                                            }
+                                        )
+                                    );
+
+                                }
+
+                            }
+
+                        }
+
+                    },
+
+                    scales: {
+
+                        x: {
+
+                            ticks: {
+                                color: "#555"
+                            }
+
+                        },
+
+                        y: {
+
+                            beginAtZero: true,
+
+                            ticks: {
+
+                                color: "#555",
+
+                                callback:
+                                    function (value) {
+
+                                        return "{{ currency_symbol }}" +
+                                            Number(value)
+                                                .toLocaleString(
+                                                    "en-IN"
+                                                );
+
+                                    }
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+        );
+
+
+    /* =====================================================
+       CATEGORY CHART
+    ===================================================== */
+
+    const categoryCanvas =
+        document.getElementById(
+            "categoryChart"
+        );
+
+
+    let categoryChart = null;
+
+
+    const categoryColors = [
+
+        "#A3FF12",
+        "#FF5C5C",
+        "#111111",
+        "#777777",
+        "#C8FF66",
+        "#FF8A8A",
+        "#444444",
+        "#AAAAAA"
+
+    ];
+
+
+    /* =====================================================
+       CATEGORY FILTER
+    ===================================================== */
+
+    function getCategoriesForPeriod(
+
+        period,
+        selectedMonth = null,
+        selectedYear = null
+
+    ) {
+
+        const today = new Date();
+
+        const currentMonth =
+            today.getMonth() + 1;
+
+        const currentYear =
+            today.getFullYear();
+
+
+        let filtered = [];
+
+
+        /* SELECTED MONTH */
+
+        if (
+            selectedMonth !== null &&
+            selectedYear !== null
+        ) {
+
+            filtered =
+                categoryData.filter(
+                    function (item) {
+
+                        return (
+
+                            Number(item.month) ===
+                            Number(selectedMonth)
+
+                            &&
+
+                            Number(item.year) ===
+                            Number(selectedYear)
+
+                        );
+
+                    }
+                );
+
+        }
+
+
+        /* THIS MONTH */
+
+        else if (period === "current") {
+
+            filtered =
+                categoryData.filter(
+                    function (item) {
+
+                        return (
+
+                            Number(item.month) ===
+                            currentMonth
+
+                            &&
+
+                            Number(item.year) ===
+                            currentYear
+
+                        );
+
+                    }
+                );
+
+        }
+
+
+        /* LAST MONTH */
+
+        else if (period === "previous") {
+
+            let previousMonth =
+                currentMonth - 1;
+
+            let previousYear =
+                currentYear;
+
+
+            if (previousMonth === 0) {
+
+                previousMonth = 12;
+
+                previousYear--;
+
+            }
+
+
+            filtered =
+                categoryData.filter(
+                    function (item) {
+
+                        return (
+
+                            Number(item.month) ===
+                            previousMonth
+
+                            &&
+
+                            Number(item.year) ===
+                            previousYear
+
+                        );
+
+                    }
+                );
+
+        }
+
+
+        /* THIS YEAR */
+
+        else if (period === "year") {
+
+            filtered =
+                categoryData.filter(
+                    function (item) {
+
+                        return (
+                            Number(item.year) ===
+                            currentYear
+                        );
+
+                    }
+                );
+
+        }
+
+
+        /* COMBINE SAME CATEGORIES */
+
+        const combined = {};
+
+
+        filtered.forEach(
+            function (item) {
+
+                const category =
+                    item.category || "Other";
+
+                const total =
+                    Number(item.total) || 0;
+
+
+                if (!combined[category]) {
+
+                    combined[category] = 0;
+
+                }
+
+
+                combined[category] += total;
+
+            }
+        );
+
+
+        return Object.entries(combined)
+
+            .map(
+                function (entry) {
+
+                    return {
+
+                        category: entry[0],
+
+                        total: entry[1]
+
+                    };
+
+                }
+            )
+
+            .sort(
+                function (a, b) {
+
+                    return b.total - a.total;
+
+                }
+            );
+
+    }
+
+
+    /* =====================================================
+       UPDATE CATEGORY CHART
+    ===================================================== */
+
+    function updateCategoryChart(
+
+        period,
+        selectedMonth = null,
+        selectedYear = null
+
+    ) {
+
+        const filtered =
+            getCategoriesForPeriod(
+                period,
+                selectedMonth,
+                selectedYear
+            );
+
+
+        const labels =
+            filtered.map(
+                function (item) {
+                    return item.category;
+                }
+            );
+
+
+        const values =
+            filtered.map(
+                function (item) {
+                    return item.total;
+                }
+            );
+
+
+        if (categoryChart) {
+
+            categoryChart.destroy();
+
+        }
+
+
+        categoryChart =
+
+            new Chart(
+
+                categoryCanvas.getContext("2d"),
+
+                {
+
+                    type: "doughnut",
+
+                    data: {
+
+                        labels: labels,
+
+                        datasets: [{
+
+                            data: values,
+
+                            backgroundColor:
+                                categoryColors,
+
+                            borderWidth: 3,
+
+                            borderColor: "#ffffff"
+
+                        }]
+
+                    },
+
+                    options: {
+
+                        responsive: true,
+
+                        maintainAspectRatio: false,
+
+                        cutout: "62%",
+
+                        animation: {
+
+                            animateRotate: true,
+
+                            animateScale: true,
+
+                            duration: 1000,
+
+                            easing: "easeOutQuart"
+
+                        },
+
+                        plugins: {
+
+                            legend: {
+
+                                position: "bottom",
+
+                                labels: {
+
+                                    color: "#333",
+
+                                    padding: 15
+
+                                }
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            );
+
+
+        updateCategoryInsight(filtered);
+
+    }
+
+
+    /* =====================================================
+       CATEGORY INSIGHT
+    ===================================================== */
+
+    function updateCategoryInsight(categories) {
+
+        const insight =
+            document.getElementById(
+                "categoryInsight"
+            );
+
+
+        if (categories.length === 0) {
+
+            insight.innerHTML =
+
+                "<h4>💡 Spending Breakdown</h4>" +
+
+                "<p>" +
+
+                "No expenses were recorded " +
+                "for this period yet." +
+
+                "</p>";
+
+            return;
+
+        }
+
+
+        const topCategory =
+            categories[0];
+
+
+        const total =
+            categories.reduce(
+
+                function (sum, item) {
+
+                    return (
+                        sum +
+                        Number(item.total)
+                    );
+
+                },
+
+                0
+
+            );
+
+
+        const percentage =
+            total > 0
+
+                ? (
+                    topCategory.total /
+                    total
+                ) * 100
+
+                : 0;
+
+
+        insight.innerHTML =
+
+            "<h4>💡 Spending Breakdown</h4>" +
+
+            "<p>" +
+
+            "<strong>" +
+            topCategory.category +
+            "</strong>" +
+
+            " is your largest expense category, " +
+
+            "accounting for " +
+
+            percentage.toFixed(1) +
+
+            "% of spending in this period." +
+
+            "</p>";
+
+
+        insight.classList.remove("update");
+
+
+        setTimeout(function () {
+
+            insight.classList.add("update");
+
+        }, 30);
+
+    }
+
+
+    /* =====================================================
+       PERIOD BUTTONS
+    ===================================================== */
+
+    const periodButtons =
+        document.querySelectorAll(
+            ".period-button"
+        );
+
+
+    periodButtons.forEach(
+        function (button) {
+
+            button.addEventListener(
+                "click",
+                function () {
+
+                    periodButtons.forEach(
+                        function (btn) {
+
+                            btn.classList.remove(
+                                "active"
+                            );
+
+                        }
+                    );
+
+
+                    button.classList.add(
+                        "active"
+                    );
+
+
+                    updateCategoryChart(
+                        button.dataset.period
+                    );
+
+
+                    document
+                        .getElementById(
+                            "categoryDescription"
+                        )
+                        .textContent =
+                            "Your spending by category.";
+
+                }
+            );
+
+        }
+    );
+
+
+    /* =====================================================
+       ZOOM ELEMENTS
+    ===================================================== */
+
+    const monthZoom =
+        document.getElementById(
+            "monthZoom"
+        );
+
+
+    const zoomMonth =
+        document.getElementById(
+            "zoomMonth"
+        );
+
+
+    const zoomIncome =
+        document.getElementById(
+            "zoomIncome"
+        );
+
+
+    const zoomExpense =
+        document.getElementById(
+            "zoomExpense"
+        );
+
+
+    const zoomClose =
+        document.getElementById(
+            "zoomClose"
+        );
+
+
+    const continueMonthly =
+        document.getElementById(
+            "continueMonthly"
+        );
+
+
+    let selectedMonthData = null;
+
+
+    /* =====================================================
+       CLICK MONTH → ZOOM
+    ===================================================== */
+
+    monthlyCanvas.addEventListener(
+        "click",
+        function (event) {
+
+            const points =
+                monthlyChart.getElementsAtEventForMode(
+
+                    event,
+
+                    "nearest",
+
+                    {
+                        intersect: true
+                    },
+
+                    true
+
+                );
+
+
+            if (!points.length) {
+
+                return;
+
+            }
+
+
+            const index =
+                points[0].index;
+
+
+            const selected =
+                monthlyData[index];
+
+
+            if (!selected) {
+
+                return;
+
+            }
+
+
+            selectedMonthData =
+                selected;
+
+
+            const monthNumber =
+                Number(selected.month);
+
+
+            const year =
+                Number(selected.year);
+
+
+            const monthName =
+                monthNames[
+                    monthNumber - 1
+                ] || "Month";
+
+
+            const incomeAmount =
+                Number(selected.income) || 0;
+
+
+            const expenseAmount =
+                Number(selected.expense) || 0;
+
+
+            /* SET MODAL DATA */
+
+            zoomMonth.textContent =
+                monthName + " " + year;
+
+
+            zoomIncome.textContent =
+                "{{ currency_symbol }}" +
+                incomeAmount.toLocaleString(
+                    "en-IN",
+                    {
+                        minimumFractionDigits: 2
+                    }
+                );
+
+
+            zoomExpense.textContent =
+                "{{ currency_symbol }}" +
+                expenseAmount.toLocaleString(
+                    "en-IN",
+                    {
+                        minimumFractionDigits: 2
+                    }
+                );
+
+
+            /* OPEN MODAL */
+
+            monthZoom.classList.add(
+                "active"
+            );
+
+
+            /* FOCUS SELECTED MONTH */
+
+            monthlyChart.data.datasets.forEach(
+                function (dataset) {
+
+                    dataset.backgroundColor =
+                        dataset.data.map(
+
+                            function (
+                                value,
+                                i
+                            ) {
+
+                                if (i === index) {
+
+                                    return (
+                                        dataset.label ===
+                                        "Income"
+
+                                            ? "#A3FF12"
+
+                                            : "#FF5C5C"
+                                    );
+
+                                }
+
+
+                                return "rgba(120,120,120,0.20)";
+
+                            }
+
+                        );
+
+                }
+            );
+
+
+            monthlyChart.update();
+
+        }
+    );
+
+
+    /* =====================================================
+       CONTINUE TO MONTHLY ANALYSIS
+    ===================================================== */
+
+    continueMonthly.addEventListener(
+        "click",
+        function () {
+
+            if (!selectedMonthData) {
+
+                return;
+
+            }
+
+
+            /* CLOSE ZOOM */
+
+            monthZoom.classList.remove(
+                "active"
+            );
+
+
+            /* SHOW MONTH FOCUS */
+
+            const monthFocus =
+                document.getElementById(
+                    "monthFocus"
+                );
+
+
+            const monthName =
+                monthNames[
+                    Number(
+                        selectedMonthData.month
+                    ) - 1
+                ];
+
+
+            monthFocus.innerHTML =
+
+                "<strong>" +
+
+                monthName +
+                " " +
+                selectedMonthData.year +
+
+                "</strong>" +
+
+                " — Income: {{ currency_symbol }}" +
+
+                Number(
+                    selectedMonthData.income
+                ).toLocaleString(
+                    "en-IN",
+                    {
+                        minimumFractionDigits: 2
+                    }
+                ) +
+
+                " · Expenses: {{ currency_symbol }}" +
+
+                Number(
+                    selectedMonthData.expense
+                ).toLocaleString(
+                    "en-IN",
+                    {
+                        minimumFractionDigits: 2
+                    }
+                );
+
+
+            monthFocus.classList.remove(
+                "show"
+            );
+
+
+            setTimeout(
+                function () {
+
+                    monthFocus.classList.add(
+                        "show"
+                    );
+
+                },
+                100
+            );
+
+
+            /* UPDATE CATEGORY CHART */
+
+            updateCategoryChart(
+
+                "selected",
+
+                Number(
+                    selectedMonthData.month
+                ),
+
+                Number(
+                    selectedMonthData.year
+                )
+
+            );
+
+
+            document
+                .getElementById(
+                    "categoryDescription"
+                )
+                .textContent =
+
+                    "Spending breakdown for " +
+
+                    monthName +
+
+                    " " +
+
+                    selectedMonthData.year +
+
+                    ".";
+
+
+            /* REMOVE PERIOD BUTTON STATE */
+
+            periodButtons.forEach(
+                function (button) {
+
+                    button.classList.remove(
+                        "active"
+                    );
+
+                }
+            );
+
+
+            /* SCROLL TO MONTH ANALYSIS */
+
+            document
+                .querySelector(
+                    ".monthly-wrapper"
+                )
+                .scrollIntoView({
+
+                    behavior: "smooth",
+
+                    block: "center"
+
+                });
+
+        }
+    );
+
+
+    /* =====================================================
+       CLOSE ZOOM
+    ===================================================== */
+
+    zoomClose.addEventListener(
+        "click",
+        function () {
+
+            monthZoom.classList.remove(
+                "active"
+            );
+
+        }
+    );
+
+
+    monthZoom.addEventListener(
+        "click",
+        function (event) {
+
+            if (
+                event.target === monthZoom
+            ) {
+
+                monthZoom.classList.remove(
+                    "active"
+                );
+
+            }
+
+        }
+    );
+
+
+    document.addEventListener(
+        "keydown",
+        function (event) {
+
+            if (
+                event.key === "Escape"
+            ) {
+
+                monthZoom.classList.remove(
+                    "active"
+                );
+
+            }
+
+        }
+    );
+
+
+    /* =====================================================
+       BASIC FREE INSIGHT
+    ===================================================== */
+
+    const insightElement =
+        document.getElementById(
+            "basicInsightText"
+        );
+
+
+    if (!monthlyData.length) {
+
+        insightElement.textContent =
+            "Add some transactions to start generating insights.";
+
+    }
+
+    else {
+
+        let highestExpenseMonth =
+            monthlyData[0];
+
+
+        monthlyData.forEach(
+            function (item) {
+
+                if (
+
+                    Number(item.expense) >
+
+                    Number(
+                        highestExpenseMonth.expense
+                    )
+
+                ) {
+
+                    highestExpenseMonth =
+                        item;
+
+                }
+
+            }
+        );
+
+
+        const highestMonthName =
+            monthNames[
+                Number(
+                    highestExpenseMonth.month
+                ) - 1
+            ];
+
+
+        insightElement.textContent =
+
+            highestMonthName +
+
+            " had your highest spending so far: {{ currency_symbol }}" +
+
+            Number(
+                highestExpenseMonth.expense
+            ).toLocaleString(
+                "en-IN",
+                {
+                    minimumFractionDigits: 2
+                }
+            ) +
+
+            ".";
+
+    }
+
+
+    /* =====================================================
+       INITIAL CATEGORY CHART
+    ===================================================== */
+
+    updateCategoryChart("current");
+
+});
+
+</script>
+
+{% endblock %}

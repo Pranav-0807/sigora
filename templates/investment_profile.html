@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="invest-hero"><div><span class="eyebrow">INVESTOR PROFILE</span><h1>How do you want your money to behave?</h1><p>Build an educational risk profile so Sigora can explain your portfolio in the right context.</p></div><a class="secondary-button" href="/invest">← Invest</a></div>
+<div class="invest-disclaimer"><strong>Educational profiling only.</strong> This does not recommend specific securities or guarantee returns.</div>
+<form method="POST" class="investment-form-card">
+  <div class="form-grid">
+    <label><span>Primary objective</span><select name="objective" required>
+      <option value="preserve" {% if profile and profile.objective=='preserve' %}selected{% endif %}>Preserve capital / lower volatility</option>
+      <option value="income" {% if profile and profile.objective=='income' %}selected{% endif %}>Income + stability</option>
+      <option value="growth" {% if not profile or profile.objective=='growth' %}selected{% endif %}>Long-term growth</option>
+    </select></label>
+    <label><span>Investment horizon</span><select name="horizon_years" required>
+      {% for y,label in [(1,'Under 3 years'),(5,'3–7 years'),(10,'7+ years')] %}<option value="{{ y }}" {% if profile and profile.horizon_years==y %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select></label>
+    <label><span>Comfort with volatility</span><select name="risk_comfort" required>
+      <option value="low" {% if profile and profile.risk_comfort=='low' %}selected{% endif %}>Low — stability matters most</option>
+      <option value="moderate" {% if not profile or profile.risk_comfort=='moderate' %}selected{% endif %}>Moderate — some fluctuations are okay</option>
+      <option value="high" {% if profile and profile.risk_comfort=='high' %}selected{% endif %}>High — I accept large fluctuations</option>
+    </select></label>
+    <label><span>If markets fell sharply</span><select name="loss_reaction" required>
+      <option value="sell" {% if profile and profile.loss_reaction=='sell' %}selected{% endif %}>I would likely reduce exposure</option>
+      <option value="hold" {% if not profile or profile.loss_reaction=='hold' %}selected{% endif %}>I would usually wait and review</option>
+      <option value="add" {% if profile and profile.loss_reaction=='add' %}selected{% endif %}>I could tolerate adding more</option>
+    </select></label>
+    <label><span>Emergency fund coverage (months)</span><input type="number" name="emergency_months" min="0" max="60" step="0.5" value="{{ profile.emergency_months if profile else 0 }}"></label>
+    <label><span>Planned monthly investment</span><input type="number" name="monthly_investment" min="0" step="0.01" value="{{ profile.monthly_investment if profile else 0 }}"></label>
+  </div>
+  <button class="hero-button" type="submit">Build my profile →</button>
+</form>
+{% endblock %}

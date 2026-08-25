@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="planning-page">
+    <div class="planning-hero"><div><span class="eyebrow">SPENDING CONTROL</span><h1>My Budgets</h1><p>Give every category a limit, then let Sigora help you stay inside it.</p></div><a href="/add-budget" class="hero-button">+ Add budget</a></div>
+    {% if budgets %}
+    <div class="budget-summary-strip"><div><span>MONTH</span><strong>{{ month }}/{{ year }}</strong></div><div><span>BUDGETS</span><strong>{{ budgets|length }}</strong></div><div><span>ON TRACK</span><strong>{{ budgets|selectattr('status','equalto','Good')|list|length }}</strong></div><div><span>WATCH</span><strong>{{ budgets|selectattr('status','equalto','Warning')|list|length }}</strong></div></div>
+    <div class="planning-grid">
+    {% for budget in budgets %}
+        {% set progress = [budget.percentage_used, 100]|min %}
+        <article class="budget-card-modern {% if budget.status == 'Over' %}is-over{% elif budget.status == 'Warning' %}is-warning{% endif %}">
+            <div class="budget-card-head"><div><span class="settings-label">{{ budget.month }}/{{ budget.year }}</span><h2>{{ budget.category }}</h2></div><div class="budget-status-pill">{% if budget.status == 'Over' %}OVER{% elif budget.status == 'Warning' %}WATCH{% else %}ON TRACK{% endif %}</div></div>
+            <div class="budget-big-row"><div><span>Spent</span><strong>{{ currency_symbol }}{{ "%.0f"|format(budget.spent) }}</strong></div><div class="budget-big-right"><span>Limit</span><strong>{{ currency_symbol }}{{ "%.0f"|format(budget.amount) }}</strong></div></div>
+            <div class="modern-progress"><div style="width: {{ progress }}%"></div></div>
+            <div class="budget-meta-row"><span>{{ "%.0f"|format(budget.percentage_used) }}% used</span>{% if budget.remaining < 0 %}<strong class="text-danger-soft">{{ currency_symbol }}{{ "%.0f"|format(budget.remaining|abs) }} over</strong>{% else %}<strong>{{ currency_symbol }}{{ "%.0f"|format(budget.remaining) }} left</strong>{% endif %}</div>
+            {% if budget.ai_insight %}<details class="interactive-detail" open><summary>✦ Sigora AI <span>View insight</span></summary><div class="detail-panel">{{ budget.ai_insight }}</div></details>{% else %}<a class="settings-action-button" href="/budgets?month={{ month }}&year={{ year }}&ai_budget={{ budget.id }}">✦ Generate AI insight</a>{% endif %}
+            <div class="card-actions"><a href="/edit-budget/{{ budget.id }}">Edit</a><a href="/delete-budget/{{ budget.id }}" onclick="return confirm('Delete this budget?');" class="danger-link">Delete</a></div>
+        </article>
+    {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-modern"><span>◫</span><h2>No budgets yet.</h2><p>Create your first spending limit and start getting better signals from Sigora.</p><a href="/add-budget" class="hero-button">Create a budget</a></div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="legal-page">
+<span class="eyebrow">LEGAL</span>
+<h1>Terms of Service</h1>
+<p class="legal-updated">Last updated: 25 August 2026</p>
+<p>These Terms govern your use of Sigora. By using the service, you agree to use it lawfully and responsibly.</p>
+
+<h2>Public Beta</h2>
+<p>Sigora is currently a public-beta product. Features, limits, integrations, pricing, and availability may change as the service develops. We may modify, suspend, or discontinue beta features when reasonably necessary.</p>
+
+<h2>Your account</h2>
+<p>You are responsible for keeping your login credentials secure and for activity performed through your account. Provide accurate information and do not attempt to access another person's account or bypass service safeguards.</p>
+
+<h2>Your financial information</h2>
+<p>You control the information you add or import into Sigora. You should review imported transactions, balances, calculations, market information, and generated insights before relying on them. Sigora may contain errors, delays, or incomplete data.</p>
+
+<h2>Acceptable use</h2>
+<p>Do not misuse Sigora, interfere with the service, probe or exploit security vulnerabilities, automate abusive traffic, upload malicious content, or use the platform for unlawful activity.</p>
+
+<h2>Premium and payments</h2>
+<p>Paid features will only become available when checkout is enabled. Any displayed launch price or Premium description is informational until a live checkout is offered. When paid subscriptions are enabled, the applicable checkout terms, billing cycle, cancellation information, and refund policy will be presented before purchase.</p>
+
+<h2>No warranties</h2>
+<p>Sigora is provided on an "as available" basis during beta. To the extent permitted by law, we do not guarantee uninterrupted availability, error-free calculations, investment outcomes, or that third-party integrations will always remain available.</p>
+
+<h2>Limitation and responsibility</h2>
+<p>You remain responsible for financial decisions made using information available through Sigora. Nothing in these Terms excludes rights or liabilities that cannot lawfully be excluded.</p>
+
+<h2>Contact</h2>
+<p>Questions about these Terms can be sent to <a href="mailto:{{ support_email or 'support.sigora@gmail.com' }}">{{ support_email or 'support.sigora@gmail.com' }}</a>.</p>
+</div>
+{% endblock %}

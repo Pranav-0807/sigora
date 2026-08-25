@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="invest-hero"><div><span class="eyebrow">MARKET RESEARCH</span><h1>{{ market.name if market else symbol }}</h1><p>{{ symbol }}{% if market and market.exchange %} · {{ market.exchange }}{% endif %} · Educational market information</p></div><a class="secondary-button" href="/invest">← Back to Invest</a></div>
+{% if market %}
+<div class="market-price-card"><div><span>Latest market price</span><strong>{{ market.currency }} {{ '%.2f'|format(market.price or 0) }}</strong><small class="{{ 'positive' if (market.change_pct or 0)>=0 else 'negative' }}">{{ '%+.2f'|format(market.change_pct or 0) }}% today</small></div><div class="market-facts"><span>Day range<strong>{{ market.day_low or '—' }} – {{ market.day_high or '—' }}</strong></span><span>52-week range<strong>{{ market.fifty_two_low or '—' }} – {{ market.fifty_two_high or '—' }}</strong></span></div></div>
+<div class="period-tabs">{% for p,label in [('5d','5D'),('1mo','1M'),('6mo','6M'),('1y','1Y'),('5y','5Y')] %}<a class="{{ 'active' if period==p else '' }}" href="/invest/market/{{ symbol }}?period={{ p }}">{{ label }}</a>{% endfor %}</div>
+<div class="market-chart-card"><canvas id="marketChart" height="110"></canvas></div>
+<section class="investment-section"><div class="section-heading"><span class="eyebrow">SIGORA EXPLAINS</span><h2>What does this mean?</h2></div><div class="layman-analysis">{{ explanation }}</div><div class="invest-disclaimer"><strong>Remember:</strong> This explains market data; it is not a recommendation to buy, sell or hold this security. Prices can be delayed or temporarily unavailable.</div></section>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+const pts={{ market.points|tojson }}; const labels=pts.map(x=>new Date(x.t*1000).toLocaleDateString()); const values=pts.map(x=>x.v);
+new Chart(document.getElementById('marketChart'),{type:'line',data:{labels:labels,datasets:[{data:values,borderColor:'#6ee787',backgroundColor:'rgba(110,231,135,.10)',fill:true,tension:.25,pointRadius:0,borderWidth:2}]},options:{plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{maxTicksLimit:7,color:'#59615b'}},y:{grid:{color:'rgba(80,90,82,.12)'},ticks:{color:'#59615b'}}},interaction:{intersect:false,mode:'index'}}});
+</script>
+{% else %}<div class="warning-card">Market data is temporarily unavailable for {{ symbol }}. Please try again later.</div>{% endif %}
+{% endblock %}

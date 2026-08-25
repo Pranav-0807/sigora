@@ -1,0 +1,1108 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="dashboard-page">
+
+    <!-- HERO -->
+    <section class="dashboard-hero">
+
+        <div>
+            <div class="dashboard-panel-eyebrow">
+                PERSONAL FINANCE
+            </div>
+
+            <h1>
+                Welcome back,
+                <span>{{ user.name if user.name else "there" }}.</span>
+            </h1>
+
+            <p>
+                Here's what your money is looking like right now.
+            </p>
+        </div>
+
+    </section>
+
+
+    <!-- SUMMARY CARDS -->
+    <section class="dashboard-summary-grid">
+
+        <div class="dashboard-stat-card">
+            <div class="dashboard-stat-top">
+                <span>Total balance</span>
+                <div class="dashboard-stat-icon">{{ currency_symbol }}</div>
+            </div>
+
+            <strong class="dashboard-stat-value">
+                {{ currency_symbol }}{{ "%.2f"|format(balance) }}
+            </strong>
+
+            <span class="dashboard-stat-caption">
+                Income minus expenses
+            </span>
+        </div>
+
+
+        <div class="dashboard-stat-card">
+            <div class="dashboard-stat-top">
+                <span>Total income</span>
+                <div class="dashboard-stat-icon">↑</div>
+            </div>
+
+            <strong class="dashboard-stat-value">
+                {{ currency_symbol }}{{ "%.2f"|format(total_income) }}
+            </strong>
+
+            <span class="dashboard-stat-caption">
+                Recorded income
+            </span>
+        </div>
+
+
+        <div class="dashboard-stat-card">
+            <div class="dashboard-stat-top">
+                <span>Total expenses</span>
+                <div class="dashboard-stat-icon">↓</div>
+            </div>
+
+            <strong class="dashboard-stat-value">
+                {{ currency_symbol }}{{ "%.2f"|format(total_expense) }}
+            </strong>
+
+            <span class="dashboard-stat-caption">
+                Recorded spending
+            </span>
+        </div>
+
+
+        <div class="dashboard-stat-card">
+            <div class="dashboard-stat-top">
+                <span>Transactions</span>
+                <div class="dashboard-stat-icon">#</div>
+            </div>
+
+            <strong class="dashboard-stat-value">
+                {{ transaction_count }}
+            </strong>
+
+            <span class="dashboard-stat-caption">
+                Total recorded activity
+            </span>
+        </div>
+
+    </section>
+
+
+    <!-- GAMIFICATION -->
+    <section class="gamification-card">
+        <div class="gamification-left">
+            <div class="gamification-badge">LV {{ gamification.level }}</div>
+            <div><span class="eyebrow">FINANCIAL MOMENTUM</span><h2>Level {{ gamification.level }} · {{ gamification.xp }} XP</h2><p>{{ gamification.current_streak }} day streak · {{ gamification.best_streak }} best</p></div>
+        </div>
+        <div class="xp-track"><div style="width: {{ [((gamification.xp % 100) or 0), 100]|min }}%"></div></div>
+        <div class="gamification-badges">
+            {% if 'first-transaction' in gamification.badges %}<span title="First transaction">✦ First move</span>{% endif %}
+            {% if 'ten-transactions' in gamification.badges %}<span title="10 transactions">10× Consistent</span>{% endif %}
+            {% if 'budget-builder' in gamification.badges %}<span>◫ Budget builder</span>{% endif %}
+            {% if 'goal-setter' in gamification.badges %}<span>◎ Goal setter</span>{% endif %}
+            {% if 'goal-achiever' in gamification.badges %}<span>🏆 Goal achiever</span>{% endif %}
+            {% if 'seven-day-streak' in gamification.badges %}<span>🔥 7-day streak</span>{% endif %}
+        </div>
+    </section>
+
+    {% if alerts %}
+    <section class="alert-center-card">
+        <div class="dashboard-panel-header"><div><div class="dashboard-panel-eyebrow">SMART ALERTS</div><h2>Things worth seeing</h2></div><span class="dashboard-period-pill">{{ alerts|length }} active</span></div>
+        <div class="alert-center-list">
+        {% for alert in alerts %}
+            <div class="alert-center-item alert-{{ alert.alert_type }}">
+                <span class="alert-center-icon">{% if alert.alert_type == 'danger' %}!{% elif alert.alert_type == 'success' %}✓{% else %}◌{% endif %}</span>
+                <div><strong>{{ alert.title }}</strong><p>{{ alert.message }}</p></div>
+                {% if alert.link %}<a href="{{ alert.link }}">Open →</a>{% endif %}
+            </div>
+        {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- MAIN GRID -->
+    <section class="dashboard-main-grid">
+
+        <!-- MONEY FLOW -->
+        <div class="dashboard-panel">
+
+            <div class="dashboard-panel-header">
+
+                <div>
+                    <div class="dashboard-panel-eyebrow">
+                        MONEY FLOW
+                    </div>
+
+                    <h2>
+                        Income vs expenses
+                    </h2>
+                </div>
+
+                <span class="dashboard-period-pill">
+                    Last 6 months
+                </span>
+
+            </div>
+
+            <div
+                class="money-flow-chart"
+                id="moneyFlowChart"
+            ></div>
+
+            <div class="money-flow-legend">
+
+                <span>
+                    <i class="legend-income"></i>
+                    Income
+                </span>
+
+                <span>
+                    <i class="legend-expense"></i>
+                    Expenses
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <!-- ALERTS -->
+        <div class="dashboard-panel">
+
+            <div class="dashboard-panel-header">
+
+                <div>
+                    <div class="dashboard-panel-eyebrow">
+                        ATTENTION
+                    </div>
+
+                    <h2>
+                        Financial alerts
+                    </h2>
+                </div>
+
+            </div>
+
+
+            <div class="dashboard-alert-list">
+
+                {% if transaction_count == 0 %}
+
+                    <!-- NON-CLICKABLE EMPTY STATE -->
+                    <div class="dashboard-alert alert-warning">
+
+                        <div class="dashboard-alert-icon">
+                            +
+                        </div>
+
+                        <div>
+                            <strong>
+                                Start tracking your money
+                            </strong>
+
+                            <p>
+                                Add your first transaction from the
+                                Transactions page to unlock useful
+                                financial insights.
+                            </p>
+                        </div>
+
+                    </div>
+
+                {% elif balance < 0 %}
+
+                    <a
+                        href="/transactions"
+                        class="dashboard-alert alert-danger"
+                    >
+
+                        <div class="dashboard-alert-icon">
+                            !
+                        </div>
+
+                        <div>
+                            <strong>
+                                You're spending more than you earn
+                            </strong>
+
+                            <p>
+                                Your recorded expenses are currently
+                                higher than your recorded income.
+                            </p>
+                        </div>
+
+                        <span class="dashboard-alert-arrow">
+                            →
+                        </span>
+
+                    </a>
+
+                {% elif total_income > 0 and total_expense >= total_income * 0.8 %}
+
+                    <a
+                        href="/budgets"
+                        class="dashboard-alert alert-warning"
+                    >
+
+                        <div class="dashboard-alert-icon">
+                            !
+                        </div>
+
+                        <div>
+                            <strong>
+                                Spending is getting high
+                            </strong>
+
+                            <p>
+                                More than 80% of your recorded income
+                                has gone toward expenses.
+                            </p>
+                        </div>
+
+                        <span class="dashboard-alert-arrow">
+                            →
+                        </span>
+
+                    </a>
+
+                {% else %}
+
+                    <div class="dashboard-empty-alert">
+
+                        <div>
+                            ✓
+                        </div>
+
+                        <strong>
+                            Everything looks good
+                        </strong>
+
+                        <p>
+                            No major financial alerts based on your
+                            current recorded activity.
+                        </p>
+
+                    </div>
+
+                {% endif %}
+
+
+                {% if top_expense_category %}
+
+                    <a
+                        href="/reports"
+                        class="dashboard-alert"
+                    >
+
+                        <div class="dashboard-alert-icon">
+                            ↗
+                        </div>
+
+                        <div>
+                            <strong>
+                                {{ top_expense_category }} is your top expense
+                            </strong>
+
+                            <p>
+                                {{ currency_symbol }}{{ "%.2f"|format(top_amount) }}
+                                recorded in this category.
+                            </p>
+                        </div>
+
+                        <span class="dashboard-alert-arrow">
+                            →
+                        </span>
+
+                    </a>
+
+                {% endif %}
+
+
+                {% if last_transaction %}
+
+                    <div class="dashboard-alert">
+
+                        <div class="dashboard-alert-icon">
+                            •
+                        </div>
+
+                        <div>
+                            <strong>
+                                Latest activity
+                            </strong>
+
+                            <p>
+                                {{ last_transaction.category }}
+                                ·
+                                {{ last_transaction.date }}
+                            </p>
+                        </div>
+
+                        <span class="dashboard-alert-arrow">
+                            →
+                        </span>
+
+                    </div>
+
+                {% endif %}
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- SIGORA INSIGHT -->
+    <section class="dashboard-ai-card">
+
+        <div class="dashboard-ai-glow"></div>
+
+        <div class="dashboard-ai-header">
+
+            <div class="dashboard-ai-brand">
+
+                <div class="dashboard-ai-icon">
+                    ✦
+                </div>
+
+                <div>
+                    <span>
+                        SIGORA
+                    </span>
+
+                    <small>
+                        Financial overview
+                    </small>
+                </div>
+
+            </div>
+
+            <div class="dashboard-ai-live">
+                INSIGHT
+            </div>
+
+        </div>
+
+
+        <div class="dashboard-ai-content">
+
+            {% if transaction_count == 0 %}
+
+                <h2>
+                    Your financial picture starts here.
+                </h2>
+
+                <p>
+                    Add a few transactions and Sigora will start
+                    turning your financial activity into useful
+                    patterns, spending signals and insights.
+                </p>
+
+                <div class="dashboard-ai-focus">
+
+                    <span>
+                        Recommended next step
+                    </span>
+
+                    <strong>
+                        Start tracking your transactions
+                    </strong>
+
+                </div>
+
+
+            {% elif balance < 0 %}
+
+                <h2>
+                    Your current spending is ahead of your income.
+                </h2>
+
+                <p>
+                    You've recorded
+                    {{ currency_symbol }}{{ "%.2f"|format(total_expense) }}
+                    in expenses against
+                    {{ currency_symbol }}{{ "%.2f"|format(total_income) }}
+                    in income.
+                    Review your spending categories and identify
+                    areas where you can cut unnecessary spending.
+                </p>
+
+                <div class="dashboard-ai-focus">
+
+                    <span>
+                        Focus area
+                    </span>
+
+                    <strong>
+                        Reduce spending
+                    </strong>
+
+                </div>
+
+
+            {% elif total_income > 0 and total_expense >= total_income * 0.8 %}
+
+                <h2>
+                    You're doing okay, but your spending deserves attention.
+                </h2>
+
+                <p>
+                    Around
+                    {{ "%.0f"|format(
+                        (total_expense / total_income) * 100
+                    ) }}%
+                    of your recorded income has already been spent.
+                    Keeping an eye on your biggest categories could
+                    help protect your remaining balance.
+                </p>
+
+                <div class="dashboard-ai-focus">
+
+                    <span>
+                        Focus area
+                    </span>
+
+                    <strong>
+                        Watch your spending
+                    </strong>
+
+                </div>
+
+
+            {% else %}
+
+                <h2>
+                    Your finances are currently in a healthy position.
+                </h2>
+
+                <p>
+                    You've recorded
+                    {{ currency_symbol }}{{ "%.2f"|format(total_income) }}
+                    in income and
+                    {{ currency_symbol }}{{ "%.2f"|format(total_expense) }}
+                    in expenses, leaving you with
+                    {{ currency_symbol }}{{ "%.2f"|format(balance) }}
+                    in recorded balance.
+                    Keep tracking consistently to make this picture
+                    even more useful.
+                </p>
+
+                <div class="dashboard-ai-focus">
+
+                    <span>
+                        Biggest expense category
+                    </span>
+
+                    <strong>
+
+                        {% if top_expense_category %}
+
+                            {{ top_expense_category }}
+                            ·
+                            {{ currency_symbol }}{{ "%.2f"|format(top_amount) }}
+
+                        {% else %}
+
+                            No expense category yet
+
+                        {% endif %}
+
+                    </strong>
+
+                </div>
+
+            {% endif %}
+
+        </div>
+
+    </section>
+
+
+    <!-- LOWER GRID -->
+    <section class="dashboard-lower-grid">
+
+        <!-- CATEGORIES -->
+        <div class="dashboard-panel">
+
+            <div class="dashboard-panel-header">
+
+                <div>
+                    <div class="dashboard-panel-eyebrow">
+                        SPENDING
+                    </div>
+
+                    <h2>
+                        Top categories
+                    </h2>
+                </div>
+
+                <a href="/reports">
+                    View reports →
+                </a>
+
+            </div>
+
+
+            {% if expense_category_totals %}
+
+                {% for category, amount in expense_category_totals.items() %}
+
+                    <div class="dashboard-category-row">
+
+                        <div class="dashboard-category-name">
+
+                            <span class="category-dot"></span>
+
+                            {{ category }}
+
+                        </div>
+
+                        <strong>
+                            {{ currency_symbol }}{{ "%.2f"|format(amount) }}
+                        </strong>
+
+                    </div>
+
+                {% endfor %}
+
+            {% else %}
+
+                <div class="dashboard-small-empty">
+
+                    <span>
+                        ◌
+                    </span>
+
+                    <p>
+                        No expense categories yet.
+                    </p>
+
+                    <p>
+                        Add transactions from the Transactions page
+                        to start building your spending picture.
+                    </p>
+
+                </div>
+
+            {% endif %}
+
+        </div>
+
+
+        <!-- SNAPSHOT -->
+        <div class="dashboard-panel">
+
+            <div class="dashboard-panel-header">
+
+                <div>
+                    <div class="dashboard-panel-eyebrow">
+                        QUICK VIEW
+                    </div>
+
+                    <h2>
+                        Financial snapshot
+                    </h2>
+                </div>
+
+            </div>
+
+
+            <div class="dashboard-category-row">
+
+                <div class="dashboard-category-name">
+                    <span class="category-dot"></span>
+                    Balance
+                </div>
+
+                <strong>
+                    {{ currency_symbol }}{{ "%.2f"|format(balance) }}
+                </strong>
+
+            </div>
+
+
+            <div class="dashboard-category-row">
+
+                <div class="dashboard-category-name">
+                    <span class="category-dot"></span>
+                    Income
+                </div>
+
+                <strong>
+                    {{ currency_symbol }}{{ "%.2f"|format(total_income) }}
+                </strong>
+
+            </div>
+
+
+            <div class="dashboard-category-row">
+
+                <div class="dashboard-category-name">
+                    <span class="category-dot"></span>
+                    Expenses
+                </div>
+
+                <strong>
+                    {{ currency_symbol }}{{ "%.2f"|format(total_expense) }}
+                </strong>
+
+            </div>
+
+
+            <div class="dashboard-category-row">
+
+                <div class="dashboard-category-name">
+                    <span class="category-dot"></span>
+                    Transactions
+                </div>
+
+                <strong>
+                    {{ transaction_count }}
+                </strong>
+
+            </div>
+
+
+            <div class="dashboard-category-row">
+
+                <div class="dashboard-category-name">
+                    <span class="category-dot"></span>
+                    Top category
+                </div>
+
+                <strong>
+
+                    {% if top_expense_category %}
+                        {{ top_expense_category }}
+                    {% else %}
+                        —
+                    {% endif %}
+
+                </strong>
+
+            </div>
+
+
+            <div class="dashboard-category-row">
+
+                <div class="dashboard-category-name">
+                    <span class="category-dot"></span>
+                    Latest activity
+                </div>
+
+                <strong>
+
+                    {% if last_transaction %}
+                        {{ last_transaction.date }}
+                    {% else %}
+                        —
+                    {% endif %}
+
+                </strong>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- RECENT TRANSACTIONS -->
+    <section class="dashboard-panel dashboard-transactions-panel">
+
+        <div class="dashboard-panel-header">
+
+            <div>
+                <div class="dashboard-panel-eyebrow">
+                    ACTIVITY
+                </div>
+
+                <h2>
+                    Recent transactions
+                </h2>
+            </div>
+
+            <a href="/transactions">
+                View all →
+            </a>
+
+        </div>
+
+
+        {% if transactions %}
+
+            <div class="dashboard-transactions-list">
+
+                {% for transaction in transactions[:6] %}
+
+                    <div class="dashboard-transaction-row">
+
+                        <div
+                            class="
+                                transaction-icon
+                                {% if transaction.transaction_type|lower == 'income' %}
+                                    transaction-income
+                                {% else %}
+                                    transaction-expense
+                                {% endif %}
+                            "
+                        >
+
+                            {% if transaction.transaction_type|lower == "income" %}
+                                ↑
+                            {% else %}
+                                ↓
+                            {% endif %}
+
+                        </div>
+
+
+                        <div class="transaction-main">
+
+                            <strong>
+                                {{ transaction.category }}
+                            </strong>
+
+                            <span>
+
+                                {% if transaction.description %}
+
+                                    {{ transaction.description }}
+
+                                {% else %}
+
+                                    {{ transaction.transaction_type|capitalize }}
+
+                                {% endif %}
+
+                            </span>
+
+                        </div>
+
+
+                        <span class="transaction-date">
+                            {{ transaction.date }}
+                        </span>
+
+
+                        <strong
+                            class="
+                                transaction-amount
+                                {% if transaction.transaction_type|lower == 'income' %}
+                                    amount-income
+                                {% else %}
+                                    amount-expense
+                                {% endif %}
+                            "
+                        >
+
+                            {% if transaction.transaction_type|lower == "income" %}
+
+                                +{{ currency_symbol }}{{ "%.2f"|format(transaction.amount) }}
+
+                            {% else %}
+
+                                -{{ currency_symbol }}{{ "%.2f"|format(transaction.amount) }}
+
+                            {% endif %}
+
+                        </strong>
+
+                    </div>
+
+                {% endfor %}
+
+            </div>
+
+
+        {% else %}
+
+            <div class="dashboard-no-transactions">
+
+                <span>
+                    ◌
+                </span>
+
+                <h3>
+                    Nothing here yet
+                </h3>
+
+                <p>
+                    Your financial activity will appear here once
+                    you start recording transactions.
+                </p>
+
+            </div>
+
+        {% endif %}
+
+    </section>
+
+</div>
+
+
+<!-- DASHBOARD DATA -->
+
+<script
+    id="dashboard-data"
+    type="application/json"
+>
+    {{ transactions | tojson | safe }}
+</script>
+
+
+<!-- MONEY FLOW JAVASCRIPT -->
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const dashboardDataElement =
+        document.getElementById("dashboard-data");
+
+    const chart =
+        document.getElementById("moneyFlowChart");
+
+
+    if (!dashboardDataElement || !chart) {
+        return;
+    }
+
+
+    let dashboardData = [];
+
+
+    try {
+
+        dashboardData =
+            JSON.parse(
+                dashboardDataElement.textContent
+            );
+
+    } catch (error) {
+
+        console.error(
+            "Sigora dashboard data error:",
+            error
+        );
+
+        return;
+
+    }
+
+
+    const today = new Date();
+
+    const months = [];
+
+
+    for (let i = 5; i >= 0; i--) {
+
+        const date = new Date(
+            today.getFullYear(),
+            today.getMonth() - i,
+            1
+        );
+
+
+        months.push({
+
+            year: date.getFullYear(),
+
+            month: date.getMonth(),
+
+            label: date.toLocaleDateString(
+                "en-US",
+                {
+                    month: "short"
+                }
+            ),
+
+            income: 0,
+
+            expense: 0
+
+        });
+
+    }
+
+
+    dashboardData.forEach(function (item) {
+
+        if (!item || !item.date) {
+            return;
+        }
+
+
+        const parts =
+            String(item.date).split("-");
+
+
+        if (parts.length !== 3) {
+            return;
+        }
+
+
+        const transactionYear =
+            parseInt(parts[0], 10);
+
+
+        const transactionMonth =
+            parseInt(parts[1], 10) - 1;
+
+
+        const amount =
+            parseFloat(item.amount) || 0;
+
+
+        const transactionType =
+            String(
+                item.transaction_type || ""
+            ).toLowerCase();
+
+
+        months.forEach(function (month) {
+
+            if (
+                month.year === transactionYear &&
+                month.month === transactionMonth
+            ) {
+
+                if (transactionType === "income") {
+
+                    month.income += amount;
+
+                }
+
+                else if (transactionType === "expense") {
+
+                    month.expense += amount;
+
+                }
+
+            }
+
+        });
+
+    });
+
+
+    let maxValue = 0;
+
+
+    months.forEach(function (month) {
+
+        maxValue = Math.max(
+            maxValue,
+            month.income,
+            month.expense
+        );
+
+    });
+
+
+    months.forEach(function (month) {
+
+        const column =
+            document.createElement("div");
+
+        column.className =
+            "money-flow-column";
+
+
+        const bars =
+            document.createElement("div");
+
+        bars.className =
+            "money-flow-bars";
+
+
+        const incomeBar =
+            document.createElement("div");
+
+        incomeBar.className =
+            "money-flow-bar income-bar";
+
+
+        const expenseBar =
+            document.createElement("div");
+
+        expenseBar.className =
+            "money-flow-bar expense-bar";
+
+
+        let incomeHeight = 4;
+
+        let expenseHeight = 4;
+
+
+        if (maxValue > 0) {
+
+            incomeHeight =
+                Math.max(
+                    4,
+                    (month.income / maxValue) * 150
+                );
+
+
+            expenseHeight =
+                Math.max(
+                    4,
+                    (month.expense / maxValue) * 150
+                );
+
+        }
+
+
+        incomeBar.style.height =
+            incomeHeight + "px";
+
+
+        expenseBar.style.height =
+            expenseHeight + "px";
+
+
+        incomeBar.title =
+            "Income: {{ currency_symbol }}" +
+            month.income.toFixed(2);
+
+
+        expenseBar.title =
+            "Expenses: {{ currency_symbol }}" +
+            month.expense.toFixed(2);
+
+
+        bars.appendChild(incomeBar);
+
+        bars.appendChild(expenseBar);
+
+
+        const label =
+            document.createElement("span");
+
+
+        label.textContent =
+            month.label;
+
+
+        column.appendChild(bars);
+
+        column.appendChild(label);
+
+
+        chart.appendChild(column);
+
+    });
+
+});
+
+</script>
+
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="planning-page">
+    <div class="planning-hero"><div><span class="eyebrow">FINANCIAL PLANNING</span><h1>My Goals</h1><p>Turn plans into milestones — and celebrate when you get there.</p></div><a href="/add-goal" class="hero-button">+ Add goal</a></div>
+    {% if goals %}
+    <div class="planning-grid">
+    {% for goal in goals %}
+        {% set progress = (goal.current_amount / goal.target_amount * 100) if goal.target_amount > 0 else 0 %}
+        {% set progress = [progress, 100]|min %}
+        <article class="goal-card-modern {% if goal.likelihood == 'Completed' %}is-complete{% endif %}">
+            <div class="goal-card-head"><div><span class="settings-label">TARGET {{ goal.target_date }}</span><h2>{{ goal.name }}</h2></div><strong class="goal-percent">{{ "%.0f"|format(progress) }}%</strong></div>
+            <div class="modern-progress goal-progress-modern"><div style="width: {{ progress }}%"></div></div>
+            <div class="goal-big-row"><div><span>Saved</span><strong>{{ currency_symbol }}{{ "%.0f"|format(goal.current_amount) }}</strong></div><div><span>Target</span><strong>{{ currency_symbol }}{{ "%.0f"|format(goal.target_amount) }}</strong></div></div>
+            {% if goal.likelihood == 'Completed' %}<div class="goal-complete-banner">✓ Goal completed — you did it.</div>{% elif goal.likelihood == 'Missed' %}<div class="goal-risk-banner">Target date has passed. Update the plan to keep moving.</div>{% else %}<div class="goal-intelligence-grid"><div><span>Monthly needed</span><strong>{{ currency_symbol }}{{ "%.0f"|format(goal.required_monthly_saving) }}</strong></div><div><span>Recent average</span><strong>{{ currency_symbol }}{{ "%.0f"|format(goal.average_monthly_saving) }}</strong></div><div><span>Likelihood</span><strong>{{ goal.likelihood }}</strong></div></div>{% endif %}
+            {% if goal.ai_insight %}<details class="interactive-detail" open><summary>✦ Goal intelligence <span>Open insight</span></summary><div class="detail-panel">{{ goal.ai_insight }}</div></details>{% else %}<a class="settings-action-button" href="/goals?ai_goal={{ goal.id }}">✦ Generate goal insight</a>{% endif %}
+            <div class="goal-save-inline">
+<form method="POST" action="/goals/{{ goal.id }}/add-savings" class="settings-form-inline">
+<input type="number" name="amount" min="0.01" step="0.01" placeholder="Amount saved" required>
+<button type="submit" class="settings-action-button">+ Add savings</button>
+</form></div>
+<div class="card-actions"><a href="/edit-goal/{{ goal.id }}">Edit</a><a href="/delete-goal/{{ goal.id }}" onclick="return confirm('Delete this goal?');" class="danger-link">Delete</a></div>
+        </article>
+    {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-modern"><span>◎</span><h2>No goals yet.</h2><p>Give yourself something concrete to work toward.</p><a href="/add-goal" class="hero-button">Create a goal</a></div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="hero">
+
+    <div class="hero-content">
+
+        <div class="hero-eyebrow">
+            PERSONAL FINANCE · REIMAGINED
+        </div>
+
+        <h1 class="hero-logo" aria-label="Sigora">
+            <span>S</span><span>I</span><span>G</span><span>O</span><span>R</span><span>A</span>
+        </h1>
+
+        <div class="hero-line"></div>
+
+        <h2 class="hero-title">
+            Know your money.<br>
+            <span>Own your future.</span>
+        </h2>
+
+        <p class="hero-description">
+            A smarter way to track your spending, understand your finances,
+            and build better financial habits.
+        </p>
+
+        <div class="hero-actions">
+            <a href="{{ '/dashboard' if session.get('user_id') else '/login' }}" class="hero-button">
+                {{ 'Continue to Sigora' if session.get('user_id') else 'Enter Sigora' }}
+                <span>→</span>
+            </a>
+
+            <a href="/transactions" class="hero-secondary">
+                View transactions
+            </a>
+        </div>
+
+    </div>
+
+    <div class="hero-decoration">
+        <div class="hero-circle"></div>
+        <div class="hero-orbit"></div>
+    </div>
+
+</div>
+
+{% endblock %}

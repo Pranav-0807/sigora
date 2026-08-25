@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="legal-page">
+<span class="eyebrow">SUPPORT</span>
+<h1>We're here to help.</h1>
+<p>If something looks wrong, you find a bug, or you have a question about Sigora, contact us.</p>
+<div class="support-contact-card">
+  <span>EMAIL</span>
+  <a href="mailto:{{ support_email or 'support.sigora@gmail.com' }}">{{ support_email or 'support.sigora@gmail.com' }}</a>
+  <p>For account-specific help, email us from the address associated with your Sigora account when possible. Never send passwords, OTPs, card PINs, API keys, or full banking credentials.</p>
+</div>
+<h2>Account and data requests</h2>
+<p>You can manage many settings directly inside Sigora. Account deletion is available in Settings. If you cannot access your account or need help with a data request, email support.</p>
+<h2>Payments</h2>
+<p>Sigora Premium checkout is currently marked “Coming Soon” until live payment onboarding is complete. You will not be charged unless you deliberately complete a live checkout after payments are enabled.</p>
+</div>
+{% endblock %}

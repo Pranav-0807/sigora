@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="transactions-page">
+  <div class="transactions-hero">
+    <div><span class="eyebrow">MONEY CONTROL</span><h1>Transactions</h1><p>Every rupee in one place. Search, filter, edit and take your data with you.</p></div>
+    <div class="hero-actions"><a href="/add-transaction" class="hero-button">+ Add transaction</a><button class="secondary-button" type="button" onclick="document.getElementById('exportMenu').classList.toggle('open')">↥ Export</button><div class="export-menu" id="exportMenu"><a href="/transactions/export?format=csv&search={{ search|urlencode }}&transaction_type={{ transaction_type|urlencode }}&category={{ category|urlencode }}">CSV</a><a href="/transactions/export?format=xlsx&search={{ search|urlencode }}&transaction_type={{ transaction_type|urlencode }}&category={{ category|urlencode }}">Excel (.xlsx)</a></div></div>
+  </div>
+  <div class="transaction-summary-grid">
+    <div><span>INCOME</span><strong class="money-positive">{{ currency_symbol }}{{ "%.0f"|format(total_income) }}</strong><small>Filtered total</small></div>
+    <div><span>EXPENSES</span><strong class="money-negative">{{ currency_symbol }}{{ "%.0f"|format(total_expense) }}</strong><small>Filtered total</small></div>
+    <div><span>BALANCE</span><strong>{{ currency_symbol }}{{ "%.0f"|format(balance) }}</strong><small>Income minus expenses</small></div>
+    <div><span>VISIBLE</span><strong>{{ transactions|length }}</strong><small>Transactions</small></div>
+  </div>
+  <section class="transaction-toolbar-card">
+    <form method="GET" action="/transactions" class="transaction-filter-form">
+      <input type="text" name="search" placeholder="Search description, category..." value="{{ search }}">
+      <select name="transaction_type"><option value="all" {% if transaction_type=='all' %}selected{% endif %}>All types</option><option value="income" {% if transaction_type=='income' %}selected{% endif %}>Income</option><option value="expense" {% if transaction_type=='expense' %}selected{% endif %}>Expense</option></select>
+      <select name="category"><option value="all">All categories</option>{% for item in categories %}<option value="{{ item|lower }}" {% if category==item|lower %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+      <button class="hero-button" type="submit">Apply filters</button>
+    </form>
+  </section>
+  {% if transactions %}
+  <section class="transaction-list-card">
+    <div class="transaction-list-head"><span>DATE</span><span>DETAILS</span><span>TYPE</span><span>AMOUNT</span><span>ACTION</span></div>
+    {% for transaction in transactions %}
+    <article class="transaction-row-modern">
+      <div class="transaction-date-modern">{{ transaction.date }}<small>{{ transaction.category }}</small></div>
+      <div class="transaction-description-modern"><strong>{{ transaction.description or 'No description' }}</strong><span>{{ transaction.category }}</span></div>
+      <div><span class="transaction-type-pill {{ 'income' if transaction.transaction_type|lower == 'income' else 'expense' }}">{{ transaction.transaction_type|capitalize }}</span></div>
+      <strong class="transaction-amount-modern {{ 'money-positive' if transaction.transaction_type|lower == 'income' else 'money-negative' }}">{{ '+' if transaction.transaction_type|lower == 'income' else '−' }}{{ currency_symbol }}{{ "%.2f"|format(transaction.amount|float) }}</strong>
+      <div class="card-actions"><a href="/edit/{{ transaction.id }}">Edit</a><a class="danger-link" href="/delete/{{ transaction.id }}" onclick="return confirm('Delete this transaction?');">Delete</a></div>
+    </article>
+    {% endfor %}
+  </section>
+  {% else %}
+  <div class="empty-modern"><span>↔</span><h2>No matching transactions.</h2><p>Add a transaction or clear your filters to see your money activity.</p><a href="/add-transaction" class="hero-button">Add transaction</a></div>
+  {% endif %}
+</div>
+<script>document.addEventListener('click',e=>{const m=document.getElementById('exportMenu'); if(m&&!e.target.closest('.hero-actions'))m.classList.remove('open')});</script>
+{% endblock %}

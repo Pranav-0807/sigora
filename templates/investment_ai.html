@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="invest-hero"><div><span class="eyebrow">SIGORA INVESTMENT INTELLIGENCE</span><h1>Portfolio insight</h1><p>AI analysis across your tracked investments and financial readiness.</p></div><a class="secondary-button" href="/invest">← Portfolio</a></div>
+<div class="invest-disclaimer"><strong>No security recommendations.</strong> Sigora analyses diversification, risk and financial context without telling you what named investment to buy or sell.</div>
+<div class="ai-invest-card"><div class="ai-mark">✦</div><div class="ai-invest-copy">{{ ai_result | replace('\n','<br>') | safe }}</div></div>
+{% endblock %}
