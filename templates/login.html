@@ -7,11 +7,13 @@
         <h1>Welcome back.</h1>
         <p class="auth-subtitle">Your money, your picture, your next move.</p>
         {% if error %}<div class="auth-error">{{ error }}</div>{% endif %}
+        {% if changed %}<div class="auth-success">Password updated. You can log in with your new password.</div>{% endif %}
         <form method="POST" class="auth-form">
             <label for="email">Email</label>
             <input id="email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required>
             <label for="password">Password</label>
             <input id="password" type="password" name="password" placeholder="Your password" autocomplete="current-password" required>
+            <div class="auth-inline-link"><a href="/forgot-password">Forgot password?</a></div>
             <button type="submit" class="auth-submit">Log In <span>→</span></button>
         </form>
         <p class="auth-switch">Don't have an account? <a href="/signup">Create one</a></p>

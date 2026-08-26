@@ -74,6 +74,10 @@ from product_features import (
     mark_alert_read,
     sync_financial_alerts,
     send_email_alert,
+    send_transactional_email,
+    create_password_reset_token,
+    password_reset_token_is_valid,
+    reset_password_with_token,
     premium_features,
     get_ai_usage,
     consume_ai_request,
@@ -1512,7 +1516,57 @@ def login():
 
         return redirect("/dashboard")
 
-    return render_template("login.html")
+    return render_template("login.html", changed=request.args.get("changed"))
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    ensure_feature_schema()
+    message = None
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        user = get_user_by_email(email) if email else None
+        if user:
+            token = create_password_reset_token(user["id"], ttl_minutes=30)
+            if token:
+                base_url = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/") or request.url_root.rstrip("/")
+                reset_url = f"{base_url}/reset-password/{token}"
+                support_email = os.getenv("SIGORA_SUPPORT_EMAIL", "support.sigora@gmail.com").strip()
+                body = (
+                    f"Hi {user['name']},\n\n"
+                    "We received a request to reset your Sigora password.\n\n"
+                    f"Reset your password: {reset_url}\n\n"
+                    "This link expires in 30 minutes and can only be used once. "
+                    "If you did not request this, you can ignore this email; your password will stay unchanged.\n\n"
+                    f"Need help? Contact {support_email}.\n\n"
+                    "— Sigora"
+                )
+                send_transactional_email(user["email"], "Reset your Sigora password", body)
+        message = "If an account exists for that email, a password reset link has been sent. Please check your inbox and spam folder."
+    return render_template("forgot_password.html", message=message)
+
+@app.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    ensure_feature_schema()
+    valid = password_reset_token_is_valid(token)
+    error = None
+    if request.method == "POST":
+        if not valid:
+            error = "This password reset link is invalid or has expired. Please request a new one."
+        else:
+            password = request.form.get("password", "")
+            confirm_password = request.form.get("confirm_password", "")
+            if len(password) < 8:
+                error = "Password must be at least 8 characters."
+            elif password != confirm_password:
+                error = "Passwords do not match."
+            else:
+                password_hash = generate_password_hash(password, method="pbkdf2:sha256")
+                if reset_password_with_token(token, password_hash):
+                    session.clear()
+                    return redirect("/login?changed=1")
+                error = "This password reset link is invalid or has expired. Please request a new one."
+                valid = False
+    return render_template("reset_password.html", token=token, valid=valid, error=error)
 
 @app.route("/logout")
 def logout():

@@ -3,6 +3,8 @@
 import os
 import smtplib
 import requests
+import secrets
+import hashlib
 from datetime import date, timedelta, datetime
 from email.message import EmailMessage
 
@@ -32,6 +34,18 @@ def ensure_feature_schema():
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS razorpay_subscription_id VARCHAR(120)")
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS razorpay_subscription_status VARCHAR(40)")
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_cancel_at_cycle_end BOOLEAN DEFAULT FALSE")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    token_hash VARCHAR(64) UNIQUE NOT NULL,
+                    expires_at TIMESTAMP NOT NULL,
+                    used_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id, created_at DESC)")
+            cur.execute("DELETE FROM password_reset_tokens WHERE expires_at < CURRENT_TIMESTAMP - INTERVAL '1 day'")
             cur.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'INR'")
             cur.execute("ALTER TABLE budgets ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'INR'")
             cur.execute("ALTER TABLE goals ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'INR'")
@@ -507,30 +521,25 @@ def mark_alert_read(user_id, alert_id):
         conn.close()
 
 
-def send_email_alert(user, subject, body):
-    """Deliver a Sigora alert by email.
-
-    Resend is used through its HTTPS API when a Resend key is available. This
-    avoids SMTP/TLS differences between hosts and makes every delivery visible
-    in the Resend dashboard. Other SMTP providers remain supported as a
-    fallback.
-    """
-    if not user.get("notification_email_enabled"):
+def send_transactional_email(recipient, subject, body):
+    """Send a transactional Sigora email via Resend, with SMTP fallback."""
+    if not recipient:
         return False
 
-    recipient = user.get("email")
-    sender = os.getenv("SMTP_FROM") or os.getenv("EMAIL_FROM") or "onboarding@resend.dev"
+    sender = (
+        os.getenv("EMAIL_FROM")
+        or os.getenv("SMTP_FROM")
+        or "no-reply@sigorafinance.com"
+    ).strip()
     resend_key = os.getenv("RESEND_API_KEY")
     host = os.getenv("SMTP_HOST")
     username = os.getenv("SMTP_USERNAME")
     password = os.getenv("SMTP_PASSWORD")
 
-    # Existing Render configuration uses the Resend API key as SMTP_PASSWORD.
-    # Reuse it automatically so no environment-variable change is required.
     if not resend_key and host and host.lower() == "smtp.resend.com":
         resend_key = password
 
-    if resend_key and recipient:
+    if resend_key:
         try:
             response = requests.post(
                 "https://api.resend.com/emails",
@@ -552,9 +561,8 @@ def send_email_alert(user, subject, body):
             print(f"Sigora Resend email failed: {exc}")
             return False
 
-    # Generic SMTP fallback for non-Resend providers.
     port = int(os.getenv("SMTP_PORT", "587"))
-    if not all([host, username, password, sender, recipient]):
+    if not all([host, username, password, sender]):
         print("Sigora email skipped: email provider is not fully configured")
         return False
 
@@ -573,6 +581,93 @@ def send_email_alert(user, subject, body):
     except Exception as exc:
         print(f"Sigora SMTP email failed: {exc}")
         return False
+
+
+def send_email_alert(user, subject, body):
+    """Deliver an optional user alert by email."""
+    if not user.get("notification_email_enabled"):
+        return False
+    return send_transactional_email(user.get("email"), subject, body)
+
+
+def create_password_reset_token(user_id, ttl_minutes=30):
+    """Create a single-use password reset token with simple abuse throttling."""
+    ensure_feature_schema()
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM password_reset_tokens WHERE user_id=%s AND created_at >= CURRENT_TIMESTAMP - INTERVAL '1 hour'",
+                (user_id,),
+            )
+            if int(cur.fetchone()[0]) >= 5:
+                conn.commit()
+                return None
+            cur.execute(
+                "SELECT created_at FROM password_reset_tokens WHERE user_id=%s ORDER BY created_at DESC LIMIT 1",
+                (user_id,),
+            )
+            latest = cur.fetchone()
+            if latest and latest[0] and latest[0] > datetime.utcnow() - timedelta(seconds=60):
+                conn.commit()
+                return None
+
+            token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+            expires_at = datetime.utcnow() + timedelta(minutes=ttl_minutes)
+            cur.execute("UPDATE password_reset_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=%s AND used_at IS NULL", (user_id,))
+            cur.execute(
+                "INSERT INTO password_reset_tokens(user_id, token_hash, expires_at) VALUES(%s,%s,%s)",
+                (user_id, token_hash, expires_at),
+            )
+        conn.commit()
+        return token
+    finally:
+        conn.close()
+
+
+def password_reset_token_is_valid(token):
+    if not token:
+        return False
+    ensure_feature_schema()
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM password_reset_tokens WHERE token_hash=%s AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP",
+                (token_hash,),
+            )
+            return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def reset_password_with_token(token, password_hash):
+    """Atomically consume a reset token and replace the user's password."""
+    if not token:
+        return False
+    ensure_feature_schema()
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, user_id FROM password_reset_tokens WHERE token_hash=%s AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP FOR UPDATE",
+                (token_hash,),
+            )
+            row = cur.fetchone()
+            if not row:
+                conn.rollback()
+                return False
+            reset_id, user_id = row
+            cur.execute("UPDATE users SET password_hash=%s WHERE id=%s", (password_hash, user_id))
+            cur.execute("UPDATE password_reset_tokens SET used_at=CURRENT_TIMESTAMP WHERE id=%s", (reset_id,))
+            cur.execute("UPDATE password_reset_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=%s AND used_at IS NULL", (user_id,))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 
 def premium_features():
