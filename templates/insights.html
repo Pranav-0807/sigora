@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="insights-page">
-  <div class="insights-hero"><div><span class="eyebrow">SIGORA INTELLIGENCE</span><h1>AI Insights</h1><p>Turn your transaction history into clear, practical financial signals.</p></div><a href="/premium" class="premium-button">{% if is_premium %}Premium active{% else %}Unlock Premium · {{ premium_currency_symbol }}{{ "%.0f"|format(premium_price) }}{% endif %}</a></div>
+  <div class="insights-hero"><div><span class="eyebrow">SIGORA INTELLIGENCE</span><h1>AI Insights</h1><p>Turn your transaction history into clear, practical financial signals.</p></div><a href="/premium" class="premium-button">{% if is_premium %}Premium active{% else %}Unlock Premium · {{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }}{% endif %}</a></div>
   <div class="ai-usage-strip"><span>AI usage</span><strong>{{ usage.month_requests }} / {{ monthly_limit }}</strong><small>analyses this month</small></div>
   <section class="ai-result-card"><div class="ai-result-head"><div><span class="eyebrow">PERSONALIZED</span><h2>Your latest analysis</h2></div><span class="ai-live-pill">AI</span></div><div class="ai-result-body">{{ ai_result|replace('\n','<br>')|safe }}</div></section>
   <div class="locked-insight-grid">

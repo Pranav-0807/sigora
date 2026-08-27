@@ -670,16 +670,19 @@ def reset_password_with_token(token, password_hash):
         conn.close()
 
 
-def premium_features():
-    return [
-        ("Advanced AI Insights", "Deeper, personalized financial analysis."),
-        ("Advanced Reports", "More detailed spending and trend reports."),
-        ("Advanced Budgeting", "Smarter budget guidance and alerts."),
-        ("Personalized Recommendations", "Actionable suggestions based on your activity."),
-        ("Spending & Income Forecasts", "Forward-looking estimates from your history."),
-        ("Advanced Goal Planning", "More detailed paths toward your goals."),
-        ("30 AI analyses / month", "Generous Premium AI usage with built-in safety limits."),
+def premium_features(intelligence=None):
+    features = [
+        ("Predictive Risk Engine", "Detect likely budget breaches before month-end and calculate a practical daily correction."),
+        ("Financial Health Score", "An explainable 0–100 score across savings, budgets, goals and cash-flow stability."),
+        ("What-if Simulator", "Model a planned purchase against your recorded savings and goals before you spend."),
+        ("Advanced AI Insights", "AI explanations grounded in Sigora's deterministic financial signals."),
+        ("Advanced Reports", "Deeper spending, trend and cash-flow analysis."),
+        ("Advanced Goal Intelligence", "Connect spending decisions with the goals they can accelerate or delay."),
+        ("30 AI analyses / month", "A larger AI allowance with built-in platform safety limits."),
     ]
+    if intelligence and intelligence.get("risks"):
+        features[0] = ("Predictive Risk Engine", f"{len(intelligence['risks'])} current budget risk(s) detected from your recorded pace.")
+    return features
 
 
 def sync_financial_alerts(user_id, budgets=None, goals=None):
@@ -1013,8 +1016,21 @@ COUNTRIES = sorted(COUNTRY_CURRENCIES.keys())
 PREMIUM_PRICE = float(os.getenv("PREMIUM_PRICE", "149"))
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "").strip().lower()
 
-def get_pricing():
-    return {"premium_price": PREMIUM_PRICE, "currency": "INR", "currency_symbol": "₹"}
+# Fixed regional prices are intentional: billing should not change every day with FX.
+# Each currency can be overridden from Render without a code deploy.
+REGIONAL_PREMIUM_PRICES = {
+    "INR": (149, "₹"), "USD": (1.99, "$"), "EUR": (1.99, "€"), "GBP": (1.49, "£"),
+    "CAD": (2.99, "C$"), "AUD": (2.99, "A$"), "CHF": (1.99, "CHF "), "SGD": (2.99, "S$"),
+    "AED": (7.99, "د.إ "), "JPY": (299, "¥"), "NZD": (3.49, "NZ$"), "ZAR": (39, "R"),
+}
+
+def get_pricing(currency="INR", country=None):
+    currency = (currency or currency_for_country(country)[0] or "INR").upper()
+    default_amount, symbol = REGIONAL_PREMIUM_PRICES.get(currency, REGIONAL_PREMIUM_PRICES["INR"])
+    amount = float(os.getenv(f"SIGORA_PREMIUM_PRICE_{currency}", str(default_amount)))
+    plan_env = "RAZORPAY_PLAN_ID" if currency == "INR" else f"RAZORPAY_PLAN_ID_{currency}"
+    plan_id = os.getenv(plan_env, "").strip()
+    return {"premium_price": amount, "currency": currency, "currency_symbol": symbol, "plan_id": plan_id, "plan_env": plan_env}
 
 def currency_for_country(country):
     return COUNTRY_CURRENCIES.get(country, ("INR","₹"))

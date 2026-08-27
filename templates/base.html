@@ -31,6 +31,7 @@
             <a href="/invest" class="nav-item"><span>↗</span><span>Invest</span></a>
             <a href="/import-transactions" class="nav-item"><span>⇧</span><span>Import</span></a>
             <a href="/insights" class="nav-item"><span>✦</span><span>Insights</span></a>
+            <a href="/intelligence" class="nav-item"><span>◈</span><span>Intelligence</span></a>
             <a href="/accounts" class="nav-item"><span>🏦</span><span>Bank accounts</span></a>
             <a href="/settings" class="nav-item"><span>⚙</span><span>Settings</span></a>
             {% endif %}
@@ -38,7 +39,7 @@
 
         <div class="sidebar-footer">
             <a href="/premium" class="premium-sidebar-link">
-                <span>✦</span> Premium · {{ premium_currency_symbol }}{{ "%.0f"|format(premium_price) }}/mo
+                <span>✦</span> Premium · {{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }}/mo
             </a>
 {% if session.get("user_id") %}
             <a href="/logout" class="logout-button"><span>↪</span> Logout</a>
@@ -57,6 +58,7 @@
         <a href="/import-transactions"><span>⇧</span><small>Import</small></a>
         <a href="/accounts"><span>🏦</span><small>Bank</small></a>
         <a href="/insights"><span>✦</span><small>AI</small></a>
+        <a href="/intelligence"><span>◈</span><small>Health</small></a>
         <a href="/settings"><span>⚙</span><small>Settings</small></a>
     </nav>
     {% endif %}
@@ -65,7 +67,7 @@
         <header class="topbar">
             <div><span class="topbar-label">PERSONAL FINANCE</span><button class="tutorial-trigger" type="button" onclick="document.getElementById('tutorialModal').classList.add('show')">▶ How Sigora works</button></div>
             <div class="topbar-right">
-                <a href="/premium" class="topbar-premium">{{ premium_currency_symbol }}{{ "%.0f"|format(premium_price) }} Premium</a>
+                <a href="/premium" class="topbar-premium">{{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }} Premium</a>
                 <span class="live-indicator"><span class="status-dot"></span>Live</span>
             </div>
         </header>

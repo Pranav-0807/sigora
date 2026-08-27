@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="premium-page">
+  <div class="premium-hero">
+    <span class="eyebrow">SIGORA INTELLIGENCE</span>
+    <h1>Know what happens next.</h1>
+    <p>Explainable signals calculated from your recorded finances — before AI turns them into advice.</p>
+    {% if intelligence.score_available %}
+      <div class="premium-price-large">{{ intelligence.score }}<span> / 100 health score</span></div>
+      <div class="premium-note">{{ intelligence.headline }}</div>
+      {% if intelligence.confidence == 'early' %}<div class="intelligence-confidence">EARLY SIGNAL · Add more history to improve confidence</div>{% elif intelligence.confidence == 'growing' %}<div class="intelligence-confidence">GROWING CONFIDENCE</div>{% elif intelligence.confidence == 'established' %}<div class="intelligence-confidence">ESTABLISHED SIGNAL</div>{% endif %}
+    {% else %}
+      <div class="intelligence-empty-score">—<span> Financial Health Score</span></div>
+      <div class="premium-note">{{ intelligence.headline }}</div>
+      <a class="secondary-button intelligence-start-button" href="/add-transaction">Add your first transaction →</a>
+    {% endif %}
+  </div>
+
+  {% if intelligence.score_available %}
+  <div class="premium-compare">
+    <div class="premium-compare-head"><div><span class="eyebrow">EXPLAINABLE SCORE</span><h2>What drives your score.</h2></div></div>
+    <div class="premium-table">
+      <div class="premium-table-row premium-table-header"><span>Signal</span><strong>Score</strong><strong>Status</strong></div>
+      {% for name, score in intelligence.score_parts.items() %}
+      <div class="premium-table-row"><span>{{ name }}</span><strong>{{ score }}/100</strong><strong>{% if score >= 75 %}Strong{% elif score >= 55 %}Watch{% else %}Improve{% endif %}</strong></div>
+      {% endfor %}
+    </div>
+    <p class="intelligence-method-note">Only signals backed by your recorded data are included. Missing budgets, goals or history are not assigned artificial neutral scores.</p>
+  </div>
+  {% else %}
+  <div class="premium-compare intelligence-onboarding-card">
+    <div class="premium-compare-head"><div><span class="eyebrow">HOW TO UNLOCK</span><h2>Your score begins with real data.</h2></div></div>
+    <div class="intelligence-unlock-grid">
+      <div><b>01</b><strong>Record activity</strong><span>Add income and expense transactions.</span></div>
+      <div><b>02</b><strong>Add context</strong><span>Create budgets and track goal progress.</span></div>
+      <div><b>03</b><strong>Build history</strong><span>More months unlock stronger stability signals.</span></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="premium-feature-grid">
+    <div class="premium-feature-card"><span>↗</span><h3>Month-end forecast</h3><p>{% if intelligence.forecast_available %}Projected expenses: {{ currency_symbol }}{{ '%.2f'|format(intelligence.projected_expense) }} based on your current recorded pace.{% else %}Add activity in the current month to unlock a month-end forecast.{% endif %}</p></div>
+    <div class="premium-feature-card"><span>◎</span><h3>Projected savings</h3><p>{% if intelligence.projected_savings is not none %}{{ currency_symbol }}{{ '%.2f'|format(intelligence.projected_savings) }} at the current pace.{% else %}Record current-month income and spending to unlock a savings projection.{% endif %}</p></div>
+    <div class="premium-feature-card"><span>!</span><h3>Predictive risks</h3><p>{% if intelligence.forecast_available %}{{ intelligence.risks|length }} budget risk(s) detected before month-end.{% else %}Risk detection activates once current-month spending is available.{% endif %}</p></div>
+  </div>
+
+  {% if intelligence.risks %}
+  <div class="premium-compare">
+    <div class="premium-compare-head"><div><span class="eyebrow">EARLY WARNING ENGINE</span><h2>Intervene before the breach.</h2></div></div>
+    <div class="premium-table">
+      <div class="premium-table-row premium-table-header"><span>Budget</span><strong>Projected</strong><strong>Correction</strong></div>
+      {% for risk in intelligence.risks %}
+      <div class="premium-table-row"><span>{{ risk.category }}</span><strong>{{ currency_symbol }}{{ '%.2f'|format(risk.projected) }}</strong><strong>≤ {{ currency_symbol }}{{ '%.2f'|format(risk.daily_allowance) }}/day</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="premium-cta">
+    <div><span class="eyebrow">WHAT-IF SIMULATOR · PREMIUM</span><h2>Can I afford this decision?</h2><p>Model a planned purchase against your recorded savings and goals.</p></div>
+    {% if is_premium and intelligence.has_financial_activity %}
+    <form method="POST" class="settings-form"><input type="number" min="0.01" step="0.01" name="purchase_amount" placeholder="Purchase amount" required><button class="premium-button" type="submit">Simulate →</button></form>
+    {% elif not is_premium %}<a class="premium-button" href="/premium">Unlock simulator</a>
+    {% else %}<a class="secondary-button" href="/add-transaction">Add financial data first</a>{% endif %}
+  </div>
+  {% if simulation %}
+  <div class="premium-usage-card"><div><span class="eyebrow">SIMULATION RESULT</span><h2>{{ simulation.verdict }}</h2>{% if simulation.ready %}<p class="settings-muted">Post-purchase recorded buffer: {{ currency_symbol }}{{ '%.2f'|format(simulation.post_buffer) }}{% if simulation.estimated_delay_days is not none %} · Equivalent to ~{{ simulation.estimated_delay_days }} days of your recent positive savings pace{% endif %}{% if simulation.goal_name %} · Goal in view: {{ simulation.goal_name }}{% endif %}</p>{% endif %}</div></div>
+  {% endif %}
+  <p class="settings-muted">Forecasts are estimates from recorded data, not guarantees or regulated financial advice.</p>
+</div>
+{% endblock %}

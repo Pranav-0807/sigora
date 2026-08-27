@@ -13,6 +13,7 @@ import requests
 from datetime import datetime
 from import_engine import read_statement, normalize_rows
 from currency_engine import convert_transaction, convert_amount
+from financial_intelligence import build_intelligence, simulate_purchase
 from io import BytesIO, StringIO
 from werkzeug.security import generate_password_hash
 from database import (
@@ -118,12 +119,15 @@ app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("IMPORT_MAX_FILE_MB", "25")) * 
 def inject_sigora_globals():
     user = get_current_user()
     currency = (user or {}).get("currency", "INR")
+    country = (user or {}).get("country", "India")
+    pricing = get_pricing(currency, country)
     symbols = {"INR":"₹","USD":"$","EUR":"€","GBP":"£","CAD":"C$","AUD":"A$","CHF":"CHF","SGD":"S$","AED":"د.إ","JPY":"¥","NZD":"NZ$","ZAR":"R"}
     return {
         "currency_symbol": symbols.get(currency, currency),
         "currency_code": currency,
-        "premium_price": get_pricing()["premium_price"],
-        "premium_currency_symbol": get_pricing().get("currency_symbol", "₹"),
+        "premium_price": pricing["premium_price"],
+        "premium_currency_symbol": pricing.get("currency_symbol", "₹"),
+        "premium_currency_code": pricing.get("currency", "INR"),
         "support_email": os.getenv("SIGORA_SUPPORT_EMAIL", "").strip(),
         "sigora_countries": COUNTRIES,
         "country_currencies": COUNTRY_CURRENCIES,
@@ -1790,7 +1794,8 @@ def premium_subscribe():
         return redirect("/login")
     key_id = os.getenv("RAZORPAY_KEY_ID")
     key_secret = os.getenv("RAZORPAY_KEY_SECRET")
-    plan_id = os.getenv("RAZORPAY_PLAN_ID")
+    pricing = get_pricing(user.get("currency", "INR"), user.get("country", "India"))
+    plan_id = pricing.get("plan_id")
     coupon_code = request.form.get("coupon_code","").strip().upper()
     coupon = None
     if coupon_code:
@@ -1805,7 +1810,7 @@ def premium_subscribe():
             "plan_id": plan_id,
             "total_count": int(os.getenv("RAZORPAY_TOTAL_COUNT", "120")),
             "customer_notify": 1,
-            "notes": {"user_id": str(user["id"]), "product": "Sigora Premium", "coupon_code": coupon_code or ""},
+            "notes": {"user_id": str(user["id"]), "product": "Sigora Premium", "coupon_code": coupon_code or "", "billing_currency": pricing["currency"]},
         }
         if coupon and coupon.get("razorpay_offer_id"):
             subscription_payload["offer_id"] = coupon["razorpay_offer_id"]
@@ -1931,6 +1936,30 @@ def financial_disclaimer():
 def support_page():
     return render_template("support.html")
 
+@app.route("/intelligence", methods=["GET", "POST"])
+def intelligence():
+    user = get_current_user()
+    if not user:
+        return redirect("/login")
+    status = get_premium_status(user["id"])
+    context = get_ai_financial_context(user["id"])
+    month, year = datetime.now().month, datetime.now().year
+    budgets_data = get_budgets(user["id"], month, year)
+    for b in budgets_data:
+        b["spent"] = get_budget_spending(user["id"], b["category"], month, year)
+    goals_data = get_goals(user["id"])
+    result = build_intelligence(context, budgets_data, goals_data)
+    simulation = None
+    if request.method == "POST":
+        if not status["is_premium"]:
+            return redirect("/premium")
+        try:
+            amount = float(request.form.get("purchase_amount", "0"))
+        except ValueError:
+            amount = 0
+        simulation = simulate_purchase(context, amount, goals_data)
+    return render_template("intelligence.html", intelligence=result, simulation=simulation, is_premium=status["is_premium"])
+
 @app.route("/premium")
 def premium():
     user = get_current_user()
@@ -1940,8 +1969,15 @@ def premium():
     status = get_premium_status(user["id"])
     usage = get_ai_usage(user["id"])
     ai_limits = get_ai_limits(status["is_premium"])
-    payment_ready = all(os.getenv(k) for k in ("RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_PLAN_ID"))
-    return render_template("premium.html", settings=settings_data, premium_features=premium_features(), premium_status=status, ai_usage=usage, ai_limits=ai_limits, payment_ready=payment_ready, pricing=get_pricing())
+    pricing = get_pricing(user.get("currency", "INR"), user.get("country", "India"))
+    context = get_ai_financial_context(user["id"])
+    month, year = datetime.now().month, datetime.now().year
+    intel_budgets = get_budgets(user["id"], month, year)
+    for b in intel_budgets:
+        b["spent"] = get_budget_spending(user["id"], b["category"], month, year)
+    intelligence = build_intelligence(context, intel_budgets, get_goals(user["id"]))
+    payment_ready = bool(os.getenv("RAZORPAY_KEY_ID") and os.getenv("RAZORPAY_KEY_SECRET") and pricing.get("plan_id"))
+    return render_template("premium.html", settings=settings_data, premium_features=premium_features(intelligence), premium_status=status, ai_usage=usage, ai_limits=ai_limits, payment_ready=payment_ready, pricing=pricing, intelligence=intelligence)
 
 @app.route("/admin/coupons", methods=["GET","POST"])
 def admin_coupons():

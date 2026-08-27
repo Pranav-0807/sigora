@@ -3216,3 +3216,30 @@ a {
 .auth-inline-link { margin:-1px 0 4px; text-align:right; }
 .auth-inline-link a { color:var(--accent); font-size:11px; font-weight:800; text-decoration:none; }
 .auth-submit-link { display:flex; align-items:center; justify-content:center; text-decoration:none; }
+
+
+/* SIGORA INTELLIGENCE NAV + DATA-SUFFICIENCY UX */
+@media (min-width: 701px) {
+    .sidebar { overflow:hidden; }
+    .sidebar .brand { flex:0 0 auto; margin-bottom:28px; }
+    .sidebar-nav { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-right:5px; scrollbar-width:thin; scrollbar-color:rgba(184,255,61,.22) transparent; }
+    .sidebar-nav::-webkit-scrollbar { width:5px; }
+    .sidebar-nav::-webkit-scrollbar-track { background:transparent; }
+    .sidebar-nav::-webkit-scrollbar-thumb { background:rgba(184,255,61,.20); border-radius:999px; }
+    .sidebar-footer { flex:0 0 auto; margin-top:12px; background:#090b0d; }
+}
+.intelligence-empty-score { margin-top:25px; font:800 44px 'Space Grotesk',sans-serif; color:var(--accent); }
+.intelligence-empty-score span { font-size:13px; color:var(--muted); font-family:'DM Sans',sans-serif; font-weight:500; }
+.intelligence-start-button { margin-top:18px; width:max-content; border-color:rgba(184,255,61,.22); color:var(--accent); background:rgba(184,255,61,.04); }
+.intelligence-confidence { display:inline-flex; margin-top:13px; padding:6px 9px; border:1px solid rgba(184,255,61,.17); border-radius:999px; color:var(--accent); background:rgba(184,255,61,.04); font-size:8px; font-weight:900; letter-spacing:.11em; }
+.intelligence-method-note { margin:15px 0 0; color:var(--muted); font-size:9px; line-height:1.6; }
+.intelligence-unlock-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.intelligence-unlock-grid > div { padding:18px; border:1px solid rgba(255,255,255,.07); border-radius:16px; background:rgba(255,255,255,.02); }
+.intelligence-unlock-grid b { display:block; color:var(--accent); font-size:10px; margin-bottom:12px; }
+.intelligence-unlock-grid strong { display:block; font-size:13px; margin-bottom:6px; }
+.intelligence-unlock-grid span { display:block; color:var(--muted); font-size:10px; line-height:1.5; }
+@media (max-width:700px) {
+    .mobile-nav { grid-template-columns:repeat(5,1fr); max-height:155px; overflow-y:auto; }
+    .intelligence-unlock-grid { grid-template-columns:1fr; }
+    .intelligence-empty-score { font-size:38px; }
+}

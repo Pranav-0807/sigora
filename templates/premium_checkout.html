@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="premium-page"><div class="premium-hero"><span class="eyebrow">SECURE CHECKOUT</span><h1>Finish your Premium upgrade.</h1><p>You're subscribing to Sigora Premium at {{ premium_currency_symbol }}{{ '%.0f'|format(premium_price) }}/month.</p></div><div class="premium-cta"><div><h2>{{ premium_currency_symbol }}{{ '%.0f'|format(premium_price) }}/month</h2><p>You'll complete payment securely through Razorpay.</p></div><button id="payBtn" class="premium-button">Open secure checkout →</button></div></div>
+<div class="premium-page"><div class="premium-hero"><span class="eyebrow">SECURE CHECKOUT</span><h1>Finish your Premium upgrade.</h1><p>You're subscribing to Sigora Premium at {{ premium_currency_symbol }}{{ '%.2f'|format(premium_price) if premium_price % 1 else '%.0f'|format(premium_price) }}/month.</p></div><div class="premium-cta"><div><h2>{{ premium_currency_symbol }}{{ '%.2f'|format(premium_price) if premium_price % 1 else '%.0f'|format(premium_price) }}/month</h2><p>You'll complete payment securely through Razorpay.</p></div><button id="payBtn" class="premium-button">Open secure checkout →</button></div></div>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
 const subscription={{ subscription|tojson }};
 document.getElementById('payBtn').addEventListener('click',function(){
- const options={key:{{ key_id|tojson }},subscription_id:subscription.id,name:'Sigora',description:'Sigora Premium — {{ premium_currency_symbol }}{{ '%.0f'|format(premium_price) }}/month',handler:async function(response){const v=await fetch('/razorpay/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(response)});if(v.ok){window.location='/premium?payment=processing'}else{window.location='/premium?payment=verification_error'}},theme:{color:'#b8ff3d'}};
+ const options={key:{{ key_id|tojson }},subscription_id:subscription.id,name:'Sigora',description:'Sigora Premium — {{ premium_currency_symbol }}{{ '%.2f'|format(premium_price) if premium_price % 1 else '%.0f'|format(premium_price) }}/month',handler:async function(response){const v=await fetch('/razorpay/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(response)});if(v.ok){window.location='/premium?payment=processing'}else{window.location='/premium?payment=verification_error'}},theme:{color:'#b8ff3d'}};
  const rzp=new Razorpay(options); rzp.open();
 });
 </script>
