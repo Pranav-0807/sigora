@@ -2273,6 +2273,27 @@ def _market_chart(symbol, range_="1mo", interval="1d"):
         if not result: return None
         meta=result.get("meta",{}); ts=result.get("timestamp",[]); quote=(result.get("indicators",{}).get("quote") or [{}])[0]; closes=quote.get("close",[])
         points=[{"t":t,"v":v} for t,v in zip(ts,closes) if v is not None]
+
+        # Yahoo occasionally returns only one historical point for BSE symbols.
+        # If that happens, use the equivalent NSE listing for chart history.
+        if len(points) < 2 and symbol.upper().endswith(".BO"):
+            fallback_symbol=symbol[:-3]+".NS"
+            fr=requests.get(
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{fallback_symbol}",
+                params={"range":range_,"interval":interval},
+                headers={"User-Agent":"Mozilla/5.0"},
+                timeout=6
+            )
+            fr.raise_for_status()
+            fresult=(fr.json().get("chart",{}).get("result") or [None])[0]
+            if fresult:
+                fts=fresult.get("timestamp",[])
+                fquote=(fresult.get("indicators",{}).get("quote") or [{}])[0]
+                fcloses=fquote.get("close",[])
+                fallback_points=[{"t":t,"v":v} for t,v in zip(fts,fcloses) if v is not None]
+                if len(fallback_points) >= 2:
+                    points=fallback_points
+
         price=meta.get("regularMarketPrice")
         prev=meta.get("chartPreviousClose") or meta.get("previousClose")
         change=(price-prev) if price is not None and prev else None
