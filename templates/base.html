@@ -65,7 +65,7 @@
 
     <main class="main-content">
         <header class="topbar">
-            <div><span class="topbar-label">PERSONAL FINANCE</span><button class="tutorial-trigger" type="button" onclick="document.getElementById('tutorialModal').classList.add('show')">▶ How Sigora works</button></div>
+            <div><span class="topbar-label">PERSONAL FINANCE</span><button class="tutorial-trigger" type="button" onclick="openTutorial()">▶ How Sigora works</button></div>
             <div class="topbar-right">
                 <a href="/premium" class="topbar-premium">{{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }} Premium</a>
                 <span class="live-indicator"><span class="status-dot"></span>Live</span>
@@ -121,19 +121,86 @@ setTimeout(() => {
 {% endif %}
 
 
-<div class="tutorial-modal" id="tutorialModal" aria-hidden="true">
+<div class="tutorial-modal" id="tutorialModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
   <div class="tutorial-backdrop" onclick="closeTutorial()"></div>
-  <div class="tutorial-window tutorial-video-window">
-    <button class="tutorial-close" type="button" onclick="closeTutorial()">×</button>
-    <div class="tutorial-video-heading"><span class="eyebrow">QUICK START</span><h2>How Sigora works</h2><p>A 12-second tour of the core workflow.</p></div>
-    <video class="tutorial-video" controls muted playsinline preload="metadata">
-      <source src="{{ url_for('static', filename='media/sigora-tutorial.mp4') }}" type="video/mp4">
-      Your browser does not support the tutorial video.
-    </video>
-    <div class="tutorial-controls"><span>Track → Plan → Understand → Improve</span><button class="hero-button" type="button" onclick="closeTutorial()">Got it ✓</button></div>
+  <div class="tutorial-window tutorial-guide-window">
+    <button class="tutorial-close" type="button" onclick="closeTutorial()" aria-label="Close tutorial">×</button>
+    <div class="tutorial-guide-heading">
+      <span class="eyebrow">QUICK START · 6 STEPS</span>
+      <h2 id="tutorialTitle">How Sigora works</h2>
+      <p>From your first transaction to a clearer view of your money.</p>
+    </div>
+
+    <div class="tutorial-step active" data-tutorial-step="0">
+      <span class="tutorial-step-number">01</span>
+      <div><h3>Track your money</h3><p>Add transactions manually or import a statement. Sigora turns the activity you record into the foundation for your dashboard and reports.</p><div class="tutorial-path">Transactions → Import → Dashboard</div></div>
+    </div>
+    <div class="tutorial-step" data-tutorial-step="1">
+      <span class="tutorial-step-number">02</span>
+      <div><h3>Give your money a plan</h3><p>Create monthly budgets and savings goals, then keep them updated as your spending and progress change.</p><div class="tutorial-path">Budgets → Goals</div></div>
+    </div>
+    <div class="tutorial-step" data-tutorial-step="2">
+      <span class="tutorial-step-number">03</span>
+      <div><h3>Understand the bigger picture</h3><p>Reports, Financial Health Score, forecasts and budget-risk signals help connect everyday activity to longer-term patterns.</p><div class="tutorial-path">Reports → Intelligence</div></div>
+    </div>
+    <div class="tutorial-step" data-tutorial-step="3">
+      <span class="tutorial-step-number">04</span>
+      <div><h3>Research your investments</h3><p>Track holdings, build a watchlist and open market charts with plain-language context. Market information is educational and may be delayed.</p><div class="tutorial-path">Invest → Watchlist → Market charts</div></div>
+    </div>
+    <div class="tutorial-step" data-tutorial-step="4">
+      <span class="tutorial-step-number">05</span>
+      <div><h3>Use SIGORA AI thoughtfully</h3><p>Insights can explain patterns in the financial data you record. They are educational, can be imperfect, and are not personalized investment advice.</p><div class="tutorial-path">Insights → Intelligence → What-if</div></div>
+    </div>
+    <div class="tutorial-step" data-tutorial-step="5">
+      <span class="tutorial-step-number">06</span>
+      <div><h3>You stay in control</h3><p>Manage your profile, alerts and account from Settings. Premium uses secure Razorpay checkout when available for your billing currency. Never share passwords, OTPs or banking credentials with Sigora support.</p><div class="tutorial-path">Settings → Premium → Support</div></div>
+    </div>
+
+    <div class="tutorial-progress" aria-hidden="true">
+      <i class="active"></i><i></i><i></i><i></i><i></i><i></i>
+    </div>
+    <div class="tutorial-guide-controls">
+      <button class="secondary-button" id="tutorialPrev" type="button" onclick="tutorialMove(-1)" disabled>← Back</button>
+      <span id="tutorialCounter">1 of 6</span>
+      <button class="hero-button" id="tutorialNext" type="button" onclick="tutorialMove(1)">Next →</button>
+    </div>
   </div>
 </div>
 
-<script>function closeTutorial(){const m=document.getElementById('tutorialModal'); if(m){m.classList.remove('show'); const v=m.querySelector('video'); if(v) v.pause();}}</script>
+<script>
+let tutorialIndex=0;
+function openTutorial(){
+  const m=document.getElementById('tutorialModal');
+  if(!m) return;
+  tutorialIndex=0; renderTutorial();
+  m.classList.add('show'); m.setAttribute('aria-hidden','false');
+}
+function closeTutorial(){
+  const m=document.getElementById('tutorialModal');
+  if(m){m.classList.remove('show');m.setAttribute('aria-hidden','true');}
+}
+function renderTutorial(){
+  const steps=[...document.querySelectorAll('[data-tutorial-step]')];
+  const dots=[...document.querySelectorAll('.tutorial-progress i')];
+  steps.forEach((el,i)=>el.classList.toggle('active',i===tutorialIndex));
+  dots.forEach((el,i)=>el.classList.toggle('active',i===tutorialIndex));
+  const prev=document.getElementById('tutorialPrev'), next=document.getElementById('tutorialNext'), count=document.getElementById('tutorialCounter');
+  if(prev) prev.disabled=tutorialIndex===0;
+  if(next) next.textContent=tutorialIndex===steps.length-1?'Got it ✓':'Next →';
+  if(count) count.textContent=(tutorialIndex+1)+' of '+steps.length;
+}
+function tutorialMove(delta){
+  const steps=document.querySelectorAll('[data-tutorial-step]');
+  if(delta>0 && tutorialIndex===steps.length-1){closeTutorial();return;}
+  tutorialIndex=Math.max(0,Math.min(steps.length-1,tutorialIndex+delta)); renderTutorial();
+}
+document.addEventListener('keydown',e=>{
+  const m=document.getElementById('tutorialModal');
+  if(!m || !m.classList.contains('show')) return;
+  if(e.key==='Escape') closeTutorial();
+  if(e.key==='ArrowRight') tutorialMove(1);
+  if(e.key==='ArrowLeft') tutorialMove(-1);
+});
+</script>
 </body>
 </html>

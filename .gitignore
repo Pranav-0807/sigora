@@ -1,12 +1,11 @@
+.env
+.env.*
+!.env.example
+.venv/
 venv/
 __pycache__/
 *.pyc
 .DS_Store
 database.db
-.env.venv/
-.env
-.venv/
-.env
-__pycache__/
-*.pyc
 test_transactions.csv
+*.log

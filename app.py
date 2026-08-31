@@ -1809,7 +1809,7 @@ def premium_subscribe():
         subscription_payload = {
             "plan_id": plan_id,
             "total_count": int(os.getenv("RAZORPAY_TOTAL_COUNT", "120")),
-            "customer_notify": 1,
+            "customer_notify": True,
             "notes": {"user_id": str(user["id"]), "product": "Sigora Premium", "coupon_code": coupon_code or "", "billing_currency": pricing["currency"]},
         }
         if coupon and coupon.get("razorpay_offer_id"):
@@ -1820,7 +1820,19 @@ def premium_subscribe():
             json=subscription_payload,
             timeout=15,
         )
-        response.raise_for_status()
+        if not response.ok:
+            try:
+                razorpay_error = response.json().get("error", {})
+                error_code = razorpay_error.get("code", "unknown")
+                error_description = razorpay_error.get("description", "Razorpay rejected the subscription request")
+            except Exception:
+                error_code = "unknown"
+                error_description = "Razorpay rejected the subscription request"
+            app.logger.error(
+                "Razorpay subscription creation failed: status=%s code=%s description=%s",
+                response.status_code, error_code, error_description
+            )
+            return redirect("/premium?payment=provider_error")
         data = response.json()
         subscription_id = data.get("id")
         if subscription_id and coupon:

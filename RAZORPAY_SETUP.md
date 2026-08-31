@@ -42,3 +42,14 @@ Sigora coupons can store a Razorpay `offer_id`. The offer itself must be configu
 ## Going live
 
 After KYC/live activation, create/confirm the corresponding Live plan and Live offers, then replace the four Razorpay environment variables with their Live values. Test Mode and Live Mode IDs/keys are separate.
+
+
+## Final public-launch notes (31 Aug 2026)
+
+- Production checkout uses Razorpay Subscriptions, not one-time Orders.
+- `RAZORPAY_PLAN_ID` must point to the live INR monthly plan.
+- `RAZORPAY_WEBHOOK_SECRET` must exactly match the secret configured for `https://sigorafinance.com/razorpay/webhook`.
+- Enable: `subscription.activated`, `subscription.charged`, `subscription.cancelled`, `subscription.halted`, `subscription.completed`.
+- `customer_notify` is sent as a JSON boolean (`true`) per the current Razorpay Subscriptions API schema.
+- Never commit or share live key secrets or webhook secrets.
+- Make one controlled real payment before announcing Premium broadly, and verify both Razorpay Dashboard state and Sigora Premium state.

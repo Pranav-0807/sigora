@@ -14,7 +14,13 @@ checks = {
     "/import-transactions route": '@app.route("/import-transactions", methods=["GET", "POST"])' in app_text,
     "Setu connect route": '@app.route("/accounts/connect/india", methods=["POST"])' in app_text,
     "Setu webhook route": 'setu' in app_text.lower() and 'webhook' in app_text.lower(),
+    "Razorpay subscription route": '@app.route("/premium/subscribe", methods=["POST"])' in app_text,
+    "Razorpay webhook route": '@app.route("/razorpay/webhook", methods=["POST"])' in app_text,
+    "Razorpay boolean customer_notify": '"customer_notify": True' in app_text,
 }
+
+base_text = (ROOT / "templates/base.html").read_text(encoding="utf-8")
+checks["Updated interactive tutorial"] = "QUICK START · 6 STEPS" in base_text and "tutorialMove" in base_text
 if missing or not all(checks.values()):
     print("FAILED")
     if missing:

@@ -3243,3 +3243,15 @@ a {
     .intelligence-unlock-grid { grid-template-columns:1fr; }
     .intelligence-empty-score { font-size:38px; }
 }
+
+/* =========================================================
+   SIGORA FINAL PUBLIC LAUNCH — interactive quick-start tour
+   ========================================================= */
+.tutorial-guide-window{width:min(760px,calc(100% - 30px));padding:28px;background:linear-gradient(145deg,#0b0e11,#0d1210);overflow:visible}
+.tutorial-guide-heading{padding:2px 42px 18px 2px}.tutorial-guide-heading h2{margin:6px 0 7px;font-size:clamp(27px,4vw,38px)}.tutorial-guide-heading p{margin:0;color:var(--muted);font-size:12px}
+.tutorial-step{display:none;grid-template-columns:72px 1fr;gap:22px;align-items:start;min-height:250px;padding:30px;border:1px solid rgba(255,255,255,.07);border-radius:22px;background:radial-gradient(circle at 88% 20%,rgba(184,255,61,.08),transparent 38%),#090c0f}.tutorial-step.active{display:grid;animation:tutorialStepIn .22s ease-out}.tutorial-step-number{font-size:34px;font-weight:950;color:var(--accent);line-height:1}.tutorial-step h3{font-size:27px;margin:0 0 12px;color:var(--text)}.tutorial-step p{max-width:570px;color:#b5bcb7;line-height:1.75;font-size:13px;margin:0}.tutorial-path{display:inline-flex;margin-top:24px;padding:8px 11px;border:1px solid rgba(184,255,61,.14);border-radius:999px;color:var(--accent);font-size:9px;font-weight:900;letter-spacing:.06em}
+.tutorial-progress{display:flex;gap:7px;padding:18px 3px 8px}.tutorial-progress i{display:block;width:8px;height:8px;border-radius:99px;background:#303531;transition:.2s}.tutorial-progress i.active{width:30px;background:var(--accent)}
+.tutorial-guide-controls{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center;padding-top:8px}.tutorial-guide-controls #tutorialCounter{text-align:center;color:var(--muted);font-size:10px;font-weight:800}.tutorial-guide-controls .secondary-button{justify-self:start}.tutorial-guide-controls .hero-button{justify-self:end}.tutorial-guide-controls button:disabled{opacity:.35;cursor:not-allowed}
+@keyframes tutorialStepIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(max-width:600px){.tutorial-guide-window{padding:18px}.tutorial-guide-heading{padding-right:36px}.tutorial-step{grid-template-columns:1fr;gap:12px;padding:22px;min-height:310px}.tutorial-step-number{font-size:24px}.tutorial-step h3{font-size:23px}.tutorial-guide-controls{grid-template-columns:1fr 1fr}.tutorial-guide-controls #tutorialCounter{display:none}.tutorial-guide-controls .secondary-button,.tutorial-guide-controls .hero-button{width:100%;justify-content:center}}
+@media(max-width:850px){.tutorial-trigger{display:inline-flex;align-items:center;margin-left:10px;font-size:9px}}
