@@ -1912,7 +1912,9 @@ def razorpay_webhook():
     if not user_id:
         return jsonify({"ok": True})
     active_events = {"subscription.activated", "subscription.charged"}
-    inactive_events = {"subscription.cancelled", "subscription.halted", "subscription.completed"}
+    # A cancellation may only stop future renewals. The customer keeps access
+    # through the already-paid current_end billing period.
+    terminal_events = {"subscription.halted", "subscription.completed"}
     expires_at = None
     if entity.get("current_end"):
         try:
@@ -1926,7 +1928,16 @@ def razorpay_webhook():
             mark_subscription_cancellation_requested(int(user_id), False)
         if subscription_id:
             redeem_subscription_coupon(subscription_id)
-    elif event in inactive_events:
+    elif event == "subscription.cancelled":
+        from product_features import set_premium_status
+        now = datetime.now(expires_at.tzinfo) if expires_at and getattr(expires_at, "tzinfo", None) else datetime.now()
+        if expires_at and expires_at > now:
+            # Renewal is cancelled, but this billing period has already been paid.
+            set_premium_status(int(user_id), True, expires_at, entity.get("status"))
+            mark_subscription_cancellation_requested(int(user_id), True)
+        else:
+            set_premium_status(int(user_id), False, expires_at, entity.get("status"))
+    elif event in terminal_events:
         from product_features import set_premium_status
         set_premium_status(int(user_id), False, expires_at, entity.get("status"))
     return jsonify({"ok": True})

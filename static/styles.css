@@ -3255,3 +3255,24 @@ a {
 @keyframes tutorialStepIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @media(max-width:600px){.tutorial-guide-window{padding:18px}.tutorial-guide-heading{padding-right:36px}.tutorial-step{grid-template-columns:1fr;gap:12px;padding:22px;min-height:310px}.tutorial-step-number{font-size:24px}.tutorial-step h3{font-size:23px}.tutorial-guide-controls{grid-template-columns:1fr 1fr}.tutorial-guide-controls #tutorialCounter{display:none}.tutorial-guide-controls .secondary-button,.tutorial-guide-controls .hero-button{width:100%;justify-content:center}}
 @media(max-width:850px){.tutorial-trigger{display:inline-flex;align-items:center;margin-left:10px;font-size:9px}}
+
+
+/* SIGORA: keep quick-start tutorial accessible on mobile */
+@media (max-width:850px) {
+    .topbar .tutorial-trigger {
+        display:inline-flex !important;
+        align-items:center;
+        margin-left:8px;
+        margin-top:4px;
+        font-size:9px;
+        white-space:nowrap;
+    }
+}
+
+@media (max-width:600px) {
+    .tutorial-guide-window {
+        width:calc(100% - 20px);
+        max-height:calc(100dvh - 20px);
+        overflow-y:auto;
+    }
+}
