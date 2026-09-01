@@ -9,6 +9,7 @@
         <label>Category <span class="field-hint">Leave as Auto to let Sigora decide</span><input type="text" name="category" placeholder="Auto-categorize"></label>
         <label>Description<input type="text" name="description" placeholder="e.g. Swiggy, salary, rent" required></label>
         <label>Date<input type="date" name="date" required></label>
+        <label>{{ t('Payment account') }} <span class="field-hint">{{ t('Choose the account this money moved through.') }}</span><select name="financial_account_id"><option value="">{{ t('Cash / unassigned') }}</option>{% for a in accounts %}<option value="{{ a.id }}">{{ a.account_name or a.institution_name }} · {{ a.institution_name }}{% if a.masked_account %} · •••• {{ a.masked_account[-4:] }}{% endif %}</option>{% endfor %}</select></label>
         <div class="form-actions"><button class="hero-button" type="submit">Add transaction</button><a class="secondary-button" href="/transactions">Cancel</a></div>
     </form>
 </div>

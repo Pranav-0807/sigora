@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ sigora_language }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,81 +11,34 @@
     <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','{{ ga4_measurement_id }}');</script>
     {% endif %}
 </head>
-<body class="{{ 'auth-page' if (request.path in ['/login', '/signup', '/forgot-password'] or request.path.startswith('/reset-password/')) else '' }}">
+<body class="{{ 'auth-page' if (request.path in ['/login', '/signup', '/forgot-password'] or request.path.startswith('/reset-password/')) else '' }}" data-language="{{ sigora_language }}">
 
-<div class="app-shell">
-    <aside class="sidebar">
-        <div class="brand">
-            <div class="brand-mark">S</div>
-            <span>SIGORA</span>
-        </div>
-
-        <nav class="sidebar-nav">
-            {% if session.get("user_id") %}
-            <a href="/" class="nav-item"><span>⌂</span><span>Home</span></a>
-            <a href="/dashboard" class="nav-item"><span>◉</span><span>Dashboard</span></a>
-            <a href="/transactions" class="nav-item"><span>↔</span><span>Transactions</span></a>
-            <a href="/reports" class="nav-item"><span>▥</span><span>Reports</span></a>
-            <a href="/budgets" class="nav-item"><span>◫</span><span>Budgets</span></a>
-            <a href="/goals" class="nav-item"><span>◎</span><span>Goals</span></a>
-            <a href="/invest" class="nav-item"><span>↗</span><span>Invest</span></a>
-            <a href="/import-transactions" class="nav-item"><span>⇧</span><span>Import</span></a>
-            <a href="/insights" class="nav-item"><span>✦</span><span>Insights</span></a>
-            <a href="/intelligence" class="nav-item"><span>◈</span><span>Intelligence</span></a>
-            <a href="/accounts" class="nav-item"><span>🏦</span><span>Bank accounts</span></a>
-            <a href="/settings" class="nav-item"><span>⚙</span><span>Settings</span></a>
-            {% endif %}
-        </nav>
-
-        <div class="sidebar-footer">
-            <a href="/premium" class="premium-sidebar-link">
-                <span>✦</span> Premium · {{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }}/mo
-            </a>
 {% if session.get("user_id") %}
-            <a href="/logout" class="logout-button"><span>↪</span> Logout</a>
-            {% endif %}
-            <div class="version"><span class="status-dot"></span> Sigora v1.1</div>
-        </div>
-    </aside>
+<button class="nav-menu-button" type="button" onclick="openSigoraMenu()" aria-label="{{ t('menu') }}" aria-controls="sigoraDrawer" aria-expanded="false"><span>☰</span><b>{{ t('menu') }}</b></button>
+<div class="drawer-backdrop" id="drawerBackdrop" onclick="closeSigoraMenu()"></div>
+<aside class="sigora-drawer" id="sigoraDrawer" aria-hidden="true">
+  <div class="drawer-head"><a class="drawer-brand" href="/dashboard"><span class="brand-mark">S</span><strong>SIGORA</strong></a><button type="button" onclick="closeSigoraMenu()" aria-label="{{ t('close') }}">×</button></div>
+  <div class="drawer-scroll">
+    <div class="drawer-group"><span>{{ t('money') }}</span><a href="/dashboard">◉ <b>{{ t('dashboard') }}</b></a><a href="/transactions">↔ <b>{{ t('transactions') }}</b></a><a href="/accounts">🏦 <b>{{ t('accounts') }}</b></a></div>
+    <div class="drawer-group"><span>{{ t('plan') }}</span><a href="/budgets">◫ <b>{{ t('budgets') }}</b></a><a href="/goals">◎ <b>{{ t('goals') }}</b></a><a href="/reports">▥ <b>{{ t('reports') }}</b></a></div>
+    <div class="drawer-group drawer-group-featured"><span>{{ t('intelligence_group') }}</span><a href="/intelligence">◈ <b>{{ t('intelligence') }}</b><small>Know what happens next</small></a><a href="/insights">✦ <b>{{ t('insights') }}</b><small>Explain your money</small></a></div>
+    <div class="drawer-group"><span>{{ t('invest_group') }}</span><a href="/invest">↗ <b>{{ t('invest') }}</b></a></div>
+    <div class="drawer-group"><span>{{ t('tools') }}</span><a href="/import-transactions">⇧ <b>{{ t('import') }}</b></a><a href="/settings">⚙ <b>{{ t('settings') }}</b></a><button class="drawer-link-button" type="button" onclick="closeSigoraMenu();openTutorial()">▶ <b>{{ t('tutorial') }}</b></button></div>
+  </div>
+  <div class="drawer-bottom">
+    <a class="drawer-premium" href="/premium">✦ {{ t('premium') }} · {{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }}/mo</a>
+    <form method="POST" action="/language" class="drawer-language"><label for="drawerLanguage">{{ t('language') }}</label><input type="hidden" name="next" value="{{ request.path }}"><select id="drawerLanguage" name="language" onchange="this.form.submit()">{% for code,label in sigora_languages.items() %}<option value="{{ code }}" {% if sigora_language==code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></form>
+    <a class="drawer-logout" href="/logout">↪ {{ t('logout') }}</a>
+  </div>
+</aside>
+{% endif %}
 
-    {% if session.get("user_id") %}
-    <nav class="mobile-nav">
-        <a href="/dashboard"><span>◉</span><small>Home</small></a>
-        <a href="/transactions"><span>↔</span><small>Money</small></a>
-        <a href="/budgets"><span>◫</span><small>Budget</small></a>
-        <a href="/goals"><span>◎</span><small>Goals</small></a>
-        <a href="/invest"><span>↗</span><small>Invest</small></a>
-        <a href="/import-transactions"><span>⇧</span><small>Import</small></a>
-        <a href="/accounts"><span>🏦</span><small>Bank</small></a>
-        <a href="/insights"><span>✦</span><small>AI</small></a>
-        <a href="/intelligence"><span>◈</span><small>Health</small></a>
-        <a href="/settings"><span>⚙</span><small>Settings</small></a>
-        <button class="mobile-tutorial-trigger" type="button" onclick="openTutorial()"><span>▶</span><small>Tutorial</small></button>
-    </nav>
-    {% endif %}
-
-    <main class="main-content">
-        <header class="topbar">
-            <div><span class="topbar-label">PERSONAL FINANCE</span><button class="tutorial-trigger" type="button" onclick="openTutorial()">▶ How Sigora works</button></div>
-            <div class="topbar-right">
-                <a href="/premium" class="topbar-premium">{{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }} Premium</a>
-                <span class="live-indicator"><span class="status-dot"></span>Live</span>
-            </div>
-        </header>
-
-        <section class="page-content">
-            {% block content %}{% endblock %}
-        </section>
-        <footer class="site-footer">
-            <span>© 2026 Sigora · Public Beta</span>
-            <nav aria-label="Legal and support">
-                <a href="/privacy">Privacy</a>
-                <a href="/terms">Terms</a>
-                <a href="/financial-disclaimer">Financial Disclaimer</a>
-                <a href="/support">Support</a>
-            </nav>
-        </footer>
-    </main>
+<div class="app-shell app-shell-focus">
+  <main class="main-content main-content-focus">
+    {% if session.get("user_id") %}<header class="focus-topbar"><a href="/dashboard" class="focus-brand"><span class="brand-mark">S</span><strong>SIGORA</strong></a><div><a href="/premium" class="topbar-premium">{{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }} {{ t('premium') }}</a><span class="live-indicator"><span class="status-dot"></span>{{ t('live') }}</span></div></header>{% endif %}
+    <section class="page-content">{% block content %}{% endblock %}</section>
+    <footer class="site-footer"><span>© 2026 SIGORA · Public Beta</span><nav aria-label="Legal and support"><a href="/privacy">{{ t('privacy') }}</a><a href="/terms">{{ t('terms') }}</a><a href="/financial-disclaimer">{{ t('disclaimer') }}</a><a href="/support">{{ t('support') }}</a></nav></footer>
+  </main>
 </div>
 
 {% set celebration = request.args.get('celebration') %}
@@ -187,8 +140,8 @@ function renderTutorial(){
   dots.forEach((el,i)=>el.classList.toggle('active',i===tutorialIndex));
   const prev=document.getElementById('tutorialPrev'), next=document.getElementById('tutorialNext'), count=document.getElementById('tutorialCounter');
   if(prev) prev.disabled=tutorialIndex===0;
-  if(next) next.textContent=tutorialIndex===steps.length-1?'Got it ✓':'Next →';
-  if(count) count.textContent=(tutorialIndex+1)+' of '+steps.length;
+  if(next) next.textContent=tutorialIndex===steps.length-1?({{ sigora_phrase_translations|tojson }}['Got it ✓']||'Got it ✓'):({{ sigora_phrase_translations|tojson }}['Next →']||'Next →');
+  if(count){const word=({{ sigora_phrase_translations|tojson }}['of']||'of');count.textContent=(tutorialIndex+1)+' '+word+' '+steps.length;}
 }
 function tutorialMove(delta){
   const steps=document.querySelectorAll('[data-tutorial-step]');
@@ -202,6 +155,32 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowRight') tutorialMove(1);
   if(e.key==='ArrowLeft') tutorialMove(-1);
 });
+</script>
+<script>
+function openSigoraMenu(){const d=document.getElementById('sigoraDrawer'),b=document.getElementById('drawerBackdrop'),m=document.querySelector('.nav-menu-button');if(!d)return;d.classList.add('open');b.classList.add('show');d.setAttribute('aria-hidden','false');if(m)m.setAttribute('aria-expanded','true');document.body.classList.add('drawer-open');}
+function closeSigoraMenu(){const d=document.getElementById('sigoraDrawer'),b=document.getElementById('drawerBackdrop'),m=document.querySelector('.nav-menu-button');if(!d)return;d.classList.remove('open');b.classList.remove('show');d.setAttribute('aria-hidden','true');if(m)m.setAttribute('aria-expanded','false');document.body.classList.remove('drawer-open');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSigoraMenu();});
+document.querySelectorAll('.sigora-drawer a').forEach(a=>a.addEventListener('click',closeSigoraMenu));
+</script>
+<script>
+(function(){
+  const lang=document.body.dataset.language||'en';
+  if(lang==='en') return;
+  const map={{ sigora_phrase_translations|tojson }};
+  const skip=new Set(['SCRIPT','STYLE']);
+  const translateTextNode=n=>{if(!n.parentElement||skip.has(n.parentElement.tagName))return;const raw=n.nodeValue,trim=raw.trim();if(trim&&map[trim])n.nodeValue=raw.replace(trim,map[trim]);};
+  const translateElement=el=>{
+    if(!el||el.nodeType!==1||skip.has(el.tagName))return;
+    ['placeholder','title','aria-label'].forEach(a=>{const v=el.getAttribute(a);if(v&&map[v])el.setAttribute(a,map[v]);});
+    if((el.tagName==='INPUT'||el.tagName==='BUTTON')&&el.value&&map[el.value])el.value=map[el.value];
+    el.childNodes.forEach(n=>{if(n.nodeType===Node.TEXT_NODE)translateTextNode(n);});
+  };
+  const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+  const nodes=[]; while(walker.nextNode()) nodes.push(walker.currentNode); nodes.forEach(translateTextNode);
+  document.querySelectorAll('input,textarea,button,option,[title],[aria-label]').forEach(translateElement);
+  // Translate UI inserted after page load (alerts, previews and interactive panels).
+  new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===Node.TEXT_NODE)translateTextNode(n);else if(n.nodeType===Node.ELEMENT_NODE){translateElement(n);n.querySelectorAll('*').forEach(translateElement);}}))).observe(document.body,{childList:true,subtree:true});
+})();
 </script>
 </body>
 </html>

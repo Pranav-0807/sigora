@@ -13,6 +13,7 @@ DATE_ALIASES={"date","transaction date","transaction_date","value date","value_d
 DESC_ALIASES={"description","narration","particulars","details","transaction description","transaction_description","remarks","reference","memo","transaction details","merchant","merchant name","payee","name","narrative"}
 AMOUNT_ALIASES={"amount","transaction amount","transaction_amount","value","sum","transaction value"}
 DEBIT_ALIASES={"debit","debits","withdrawal","withdrawals","withdraw","debit amount","debit_amount","dr","debit transaction"}
+BALANCE_ALIASES={"balance","running balance","closing balance","available balance","account balance","balance amount","running_balance"}
 CREDIT_ALIASES={"credit","credits","deposit","deposits","credit amount","credit_amount","cr","credit transaction"}
 DATE_HINTS=("date","posted","posting","transaction","value","entry")
 DESC_HINTS=("description","narration","particular","detail","memo","merchant","payee","remarks","narrative")
@@ -193,17 +194,53 @@ def rows_from_pdf(fileobj,password=None):
     return parsed,["Date","Description","Amount"],"pdf"
 
 
+
+def rows_from_delimited(fileobj, filename):
+    """Read CSV/TSV/TXT exports with delimiter and encoding detection."""
+    raw=fileobj.read()
+    if isinstance(raw,str): text=raw
+    else:
+        for enc in ("utf-8-sig","utf-16","cp1252","latin-1"):
+            try: text=raw.decode(enc); break
+            except UnicodeDecodeError: continue
+        else: text=raw.decode("utf-8",errors="replace")
+    if not text.strip(): raise ValueError("Statement file is empty.")
+    try: dialect=csv.Sniffer().sniff(text[:16000], delimiters=",;\t|")
+    except Exception: dialect=csv.excel_tab if Path(filename).suffix.lower()==".tsv" else csv.excel
+    raw_rows=list(csv.reader(io.StringIO(text),dialect=dialect))
+    scores=[_header_score(r) for r in raw_rows[:25]]
+    if not scores: raise ValueError("Statement file is empty.")
+    header_index=max(range(len(scores)),key=lambda i:scores[i])
+    if scores[header_index]<5: raise ValueError("Could not identify the transaction header row in this statement.")
+    return (*_dict_rows(raw_rows,header_index),Path(filename).suffix.lower().lstrip(".") or "text")
+
+
+def rows_from_ofx(fileobj, filename):
+    """Parse common OFX/QFX bank exports without storing credentials."""
+    raw=fileobj.read(); text=raw.decode("utf-8",errors="ignore") if isinstance(raw,bytes) else raw
+    def tag(block,name):
+        m=re.search(rf"<{name}>([^<\r\n]+)",block,re.I); return m.group(1).strip() if m else ""
+    blocks=re.findall(r"<STMTTRN>(.*?)(?=<STMTTRN>|</BANKTRANLIST>|</STMTTRN>)",text,re.I|re.S)
+    out=[]
+    for b in blocks:
+        d=tag(b,"DTPOSTED")[:8]; amt=tag(b,"TRNAMT"); desc=tag(b,"NAME") or tag(b,"MEMO") or tag(b,"FITID")
+        if len(d)==8 and amt and desc:
+            out.append({"Date":f"{d[:4]}-{d[4:6]}-{d[6:8]}","Description":desc,"Amount":amt})
+    if not out: raise ValueError("Could not detect transactions in this OFX/QFX statement.")
+    return out,["Date","Description","Amount"],Path(filename).suffix.lower().lstrip(".")
+
 def read_statement(fileobj,filename,password=None):
     ext=Path(filename).suffix.lower()
-    if ext==".csv": return rows_from_csv(fileobj)
+    if ext in {".csv",".tsv",".txt"}: return rows_from_delimited(fileobj,filename)
+    if ext in {".ofx",".qfx"}: return rows_from_ofx(fileobj,filename)
     if ext in {".xlsx",".xls"}: return rows_from_excel(fileobj,filename)
     if ext==".pdf": return rows_from_pdf(fileobj,password)
-    raise ValueError("Unsupported file type. Use CSV, XLSX, XLS or PDF.")
+    raise ValueError("Unsupported file type. Use PDF, CSV/TSV/TXT, XLSX/XLS, OFX or QFX.")
 
 
 def normalize_rows(rows,columns,categorize):
     date_col=find_col(columns,DATE_ALIASES,DATE_HINTS); desc_col=find_col(columns,DESC_ALIASES,DESC_HINTS)
-    amount_col=find_col(columns,AMOUNT_ALIASES,AMOUNT_HINTS); debit_col=find_col(columns,DEBIT_ALIASES,("debit","withdraw","dr")); credit_col=find_col(columns,CREDIT_ALIASES,("credit","deposit","cr"))
+    amount_col=find_col(columns,AMOUNT_ALIASES,("amount","transaction amount")); debit_col=find_col(columns,DEBIT_ALIASES,("debit","withdraw","dr")); credit_col=find_col(columns,CREDIT_ALIASES,("credit","deposit","cr"))
     if not date_col: raise ValueError("Could not identify the transaction date column.")
     if not desc_col: raise ValueError("Could not identify the transaction description/narration column.")
     if not amount_col and not debit_col and not credit_col: raise ValueError("Could not identify an amount, debit, or credit column.")
@@ -212,16 +249,31 @@ def normalize_rows(rows,columns,categorize):
         try:
             d=clean_date(row.get(date_col)); desc=str(row.get(desc_col) or "").strip()
             if not desc: raise ValueError("description is empty")
-            if amount_col:
-                amt=clean_amount(row.get(amount_col))
-            else:
+            # Prefer explicit debit/credit columns over a generic amount match.
+            # This prevents headers such as "Debit Amount" from being treated as
+            # a positive generic amount (which would incorrectly become income).
+            if debit_col or credit_col:
                 debit=clean_amount(row.get(debit_col)) if debit_col else 0; credit=clean_amount(row.get(credit_col)) if credit_col else 0
                 if debit and credit: raise ValueError("both debit and credit contain values")
                 amt=-abs(debit) if debit else (abs(credit) if credit else 0)
                 if amt==0: raise ValueError("amount is empty")
+            else:
+                amt=clean_amount(row.get(amount_col))
             if amt==0: raise ValueError("amount is zero")
             tx_type="income" if amt>0 else "expense"; amount=abs(round(amt,2)); category=categorize(desc,tx_type)
             normalized.append({"date":d,"description":desc,"transaction_type":tx_type,"amount":amount,"category":category})
         except Exception as e: errors.append(f"Row {idx}: {e}")
     if not normalized and errors: raise ValueError("No valid transactions could be extracted. Please check the statement format.")
     return normalized,errors
+
+
+def infer_statement_balance(rows, columns):
+    """Return the latest parseable running/closing balance when a statement exposes one."""
+    col=find_col(columns,BALANCE_ALIASES,("balance",))
+    if not col: return None
+    for row in reversed(rows):
+        raw=row.get(col)
+        if raw not in (None,""):
+            try: return abs(clean_amount(raw))
+            except Exception: continue
+    return None

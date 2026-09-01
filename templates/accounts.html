@@ -1,54 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="settings-page">
-  <div class="settings-hero">
-    <div>
-      <span class="eyebrow">CONNECTED FINANCES</span>
-      <h1>Bank accounts</h1>
-      <p>Automatic bank syncing is being prepared for Sigora.</p>
-    </div>
-  </div>
-
+<div class="settings-page bank-hub">
+  <div class="settings-hero"><div><span class="eyebrow">{{ t('connected_finances') }}</span><h1>{{ t('accounts') }}</h1><p>{{ t('accounts_sub') }}</p></div><a class="hero-button" href="/import-transactions">{{ t('import_statement') }} →</a></div>
+  {% if message %}<div class="settings-message success">{{ message }}</div>{% endif %}{% if error %}<div class="settings-message error">{{ error }}</div>{% endif %}
+  <div class="bank-summary-strip"><div><span>{{ t('accounts_added') }}</span><strong>{{ accounts|length }}</strong></div><div><span>{{ t('statement_ready') }}</span><strong>PDF · CSV · XLSX · OFX</strong></div><div><span>{{ t('credentials') }}</span><strong>{{ t('never_requested') }}</strong></div></div>
   <div class="settings-grid">
-    <section class="settings-card settings-card-wide">
-      <div class="settings-card-heading">
-        <div>
-          <span class="settings-label">COMING SOON</span>
-          <h2>Automatic Bank Sync</h2>
-        </div>
-        <span class="settings-icon">🏦</span>
-      </div>
-
-      <p class="settings-muted">
-        Sigora is preparing secure, consent-based Indian bank connections through the Account Aggregator ecosystem.
-        Live connectivity requires regulated FIU/provider onboarding, so it is not enabled for public beta users yet.
-      </p>
-
-      <div class="settings-message" style="margin-top:16px">
-        Sigora never asks for or stores your bank password, OTP, or UPI PIN.
-      </div>
-
-      <div style="margin-top:22px">
-        <a class="hero-button" href="/import-transactions">Import bank statement →</a>
-      </div>
-
-      <p class="settings-muted" style="margin-top:14px">
-        You can already import supported CSV, Excel and PDF bank statements. Sigora will detect transactions, avoid duplicates and add them to your existing dashboard and reports.
-      </p>
+    <section class="settings-card settings-card-wide"><div class="settings-card-heading"><div><span class="settings-label">{{ t('your_accounts') }}</span><h2>{{ t('money_sources') }}</h2></div><span class="settings-icon">🏦</span></div>
+      {% if accounts %}<div class="bank-account-list">{% for a in accounts %}<div class="bank-account-row"><div class="bank-logo">{{ (a.institution_name or 'B')[0]|upper }}</div><div class="bank-account-main"><strong>{{ a.account_name or a.institution_name }}</strong><span>{{ a.institution_name }} · {{ (a.account_type or 'account')|title }}{% if a.masked_account %} · •••• {{ a.masked_account[-4:] }}{% endif %}</span></div><div class="bank-account-balance">{% if a.live_balance is not none %}<strong>{{ a.currency }} {{ a.live_balance|money }}</strong>{% else %}<strong>{{ t('statement_account') }}</strong>{% endif %}<small>{{ t('updated') }} {{ a.last_synced_at[:10] if a.last_synced_at else t('not_yet') }}</small></div><div class="bank-row-actions"><a class="secondary-button" href="/accounts/{{ a.id }}">{{ t('view_account') }}</a><a class="secondary-button" href="/import-transactions?account_id={{ a.id }}">{{ t('import') }}</a></div></div>{% endfor %}</div>{% else %}<div class="bank-empty"><span>🏦</span><h3>{{ t('add_first_account') }}</h3><p>{{ t('add_first_account_sub') }}</p></div>{% endif %}
     </section>
-
-    <section class="settings-card settings-card-wide">
-      <div class="settings-card-heading">
-        <div>
-          <span class="settings-label">WHAT'S NEXT</span>
-          <h2>Designed for secure account syncing</h2>
-        </div>
-        <span class="settings-icon">↻</span>
-      </div>
-      <p class="settings-muted">
-        When provider onboarding is complete, this page can activate consent-based account connection and automatic transaction syncing without changing the rest of your Sigora data model.
-      </p>
+    <section class="settings-card"><div class="settings-card-heading"><div><span class="settings-label">{{ t('add_account') }}</span><h2>{{ t('statement_account') }}</h2></div><span class="settings-icon">＋</span></div>
+      <form method="POST" action="/accounts/add" class="bank-add-form"><label>{{ t('bank_name') }}<input name="institution_name" placeholder="HDFC Bank / SBI / ICICI / ..." required></label><label>{{ t('account_nickname') }}<input name="account_name" placeholder="{{ t('primary_savings') }}"></label><div class="form-row"><label>{{ t('account_type') }}<select name="account_type"><option value="savings">{{ t('savings') }}</option><option value="current">{{ t('current_account') }}</option><option value="credit_card">{{ t('credit_card') }}</option><option value="wallet">{{ t('wallet') }}</option><option value="loan">{{ t('loan') }}</option><option value="liability">{{ t('liability') }}</option></select></label><label>{{ t('currency') }}<select name="currency"><option>INR</option><option>USD</option><option>EUR</option><option>GBP</option></select></label></div><div class="form-row"><label>{{ t('last_four') }}<input name="masked_account" inputmode="numeric" maxlength="8" placeholder="1234"></label><label>{{ t('balance_or_outstanding_optional') }}<input name="balance" inputmode="decimal" placeholder="0.00"></label></div><p class="settings-muted">{{ t('balance_checkpoint_help') }}</p><button class="hero-button" type="submit">{{ t('add_account') }}</button></form>
     </section>
+    <section class="settings-card"><div class="settings-card-heading"><div><span class="settings-label">{{ t('privacy') }}</span><h2>{{ t('safe_by_design') }}</h2></div><span class="settings-icon">⌁</span></div><p class="settings-muted">{{ t('bank_privacy') }}</p><div class="settings-message">{{ t('no_credentials') }}</div></section>
   </div>
 </div>
 {% endblock %}

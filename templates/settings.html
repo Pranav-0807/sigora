@@ -4,8 +4,8 @@
     <div class="settings-hero">
         <div>
             <span class="eyebrow">CONTROL CENTRE</span>
-            <h1>Settings</h1>
-            <p>Make Sigora work the way you want.</p>
+            <h1>{{ t('settings_title') }}</h1>
+            <p>{{ t('settings_sub') }}</p>
         </div>
         {% if settings.is_premium %}<span class="premium-pill">✦ PREMIUM</span>{% endif %}
     </div>
@@ -15,6 +15,15 @@
     {% if request.args.get('support') == 'sent' %}<div class="settings-message success">Support request received. We'll follow up using the email you provided.</div>{% endif %}
 
     <div class="settings-grid">
+        <section class="settings-card settings-card-wide language-settings-card">
+            <div class="settings-card-heading"><div><span class="settings-label">{{ t('language')|upper }}</span><h2>{{ t('language_title') }}</h2></div><span class="settings-icon">文</span></div>
+            <p class="settings-muted">{{ t('language_sub') }}</p>
+            <form method="POST" action="/language">
+                <input type="hidden" name="next" value="/settings">
+                <div class="language-choice-row">{% for code,label in sigora_languages.items() %}<label><input type="radio" name="language" value="{{ code }}" {% if sigora_language==code %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div>
+                <button class="settings-action-button" type="submit">{{ t('save_language') }}</button>
+            </form>
+        </section>
         <section class="settings-card settings-card-wide">
             <div class="settings-card-heading"><div><span class="settings-label">ACCOUNT</span><h2>Your profile</h2></div><span class="settings-icon">◉</span></div>
             <form method="POST" class="settings-form">

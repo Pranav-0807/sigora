@@ -12,87 +12,35 @@
                 PERSONAL FINANCE
             </div>
 
-            <h1>
-                Welcome back,
-                <span>{{ user.name if user.name else "there" }}.</span>
-            </h1>
-
-            <p>
-                Here's what your money is looking like right now.
-            </p>
+            <h1>{{ t('welcome') }}, <span>{{ user.name if user.name else "there" }}.</span></h1>
+            <p>{{ t('money_now') }}</p>
         </div>
 
     </section>
 
 
-    <!-- SUMMARY CARDS -->
+    <!-- BALANCE SHEET -->
     <section class="dashboard-summary-grid">
-
-        <div class="dashboard-stat-card">
-            <div class="dashboard-stat-top">
-                <span>Total balance</span>
-                <div class="dashboard-stat-icon">{{ currency_symbol }}</div>
-            </div>
-
-            <strong class="dashboard-stat-value">
-                {{ currency_symbol }}{{ "%.2f"|format(balance) }}
-            </strong>
-
-            <span class="dashboard-stat-caption">
-                Income minus expenses
-            </span>
-        </div>
-
-
-        <div class="dashboard-stat-card">
-            <div class="dashboard-stat-top">
-                <span>Total income</span>
-                <div class="dashboard-stat-icon">↑</div>
-            </div>
-
-            <strong class="dashboard-stat-value">
-                {{ currency_symbol }}{{ "%.2f"|format(total_income) }}
-            </strong>
-
-            <span class="dashboard-stat-caption">
-                Recorded income
-            </span>
-        </div>
-
-
-        <div class="dashboard-stat-card">
-            <div class="dashboard-stat-top">
-                <span>Total expenses</span>
-                <div class="dashboard-stat-icon">↓</div>
-            </div>
-
-            <strong class="dashboard-stat-value">
-                {{ currency_symbol }}{{ "%.2f"|format(total_expense) }}
-            </strong>
-
-            <span class="dashboard-stat-caption">
-                Recorded spending
-            </span>
-        </div>
-
-
-        <div class="dashboard-stat-card">
-            <div class="dashboard-stat-top">
-                <span>Transactions</span>
-                <div class="dashboard-stat-icon">#</div>
-            </div>
-
-            <strong class="dashboard-stat-value">
-                {{ transaction_count }}
-            </strong>
-
-            <span class="dashboard-stat-caption">
-                Total recorded activity
-            </span>
-        </div>
-
+        <div class="dashboard-stat-card"><div class="dashboard-stat-top"><span>{{ t('total_cash') }}</span><div class="dashboard-stat-icon">{{ currency_symbol }}</div></div><strong class="dashboard-stat-value">{{ currency_symbol }}{{ "%.2f"|format(total_cash) }}</strong><span class="dashboard-stat-caption">{{ t('tracked_cash') }}</span></div>
+        <div class="dashboard-stat-card"><div class="dashboard-stat-top"><span>{{ t('investments_value') }}</span><div class="dashboard-stat-icon">↗</div></div><strong class="dashboard-stat-value">{{ currency_symbol }}{{ "%.2f"|format(total_investments) }}</strong><span class="dashboard-stat-caption">{{ t('tracked_investments') }}</span></div>
+        <div class="dashboard-stat-card"><div class="dashboard-stat-top"><span>{{ t('liabilities') }}</span><div class="dashboard-stat-icon">−</div></div><strong class="dashboard-stat-value">{{ currency_symbol }}{{ "%.2f"|format(total_liabilities) }}</strong><span class="dashboard-stat-caption">{{ t('tracked_liabilities') }}</span></div>
+        <div class="dashboard-stat-card"><div class="dashboard-stat-top"><span>{{ t('net_worth') }}</span><div class="dashboard-stat-icon">◎</div></div><strong class="dashboard-stat-value">{{ currency_symbol }}{{ "%.2f"|format(net_worth) }}</strong><span class="dashboard-stat-caption">{{ t('assets_minus_liabilities') }}</span></div>
+    </section>
+    <section class="dashboard-summary-grid cashflow-summary-grid">
+        <div class="dashboard-stat-card"><div class="dashboard-stat-top"><span>{{ t('this_month_income') }}</span><div class="dashboard-stat-icon">↑</div></div><strong class="dashboard-stat-value">{{ currency_symbol }}{{ "%.2f"|format(month_income) }}</strong><span class="dashboard-stat-caption">{{ t('monthly_cashflow') }}</span></div>
+        <div class="dashboard-stat-card"><div class="dashboard-stat-top"><span>{{ t('this_month_expenses') }}</span><div class="dashboard-stat-icon">↓</div></div><strong class="dashboard-stat-value">{{ currency_symbol }}{{ "%.2f"|format(month_expense) }}</strong><span class="dashboard-stat-caption">{{ t('monthly_cashflow') }}</span></div>
     </section>
 
+    <section class="sigora-future-card">
+      <div class="sigora-future-head"><div><span class="eyebrow">SIGORA INTELLIGENCE</span><h2>{{ t('next_title') }}</h2><p>{{ t('next_sub') }}</p></div></div>
+      <div class="sigora-future-grid">
+        <div class="future-signal accent"><span>{{ t('health_score') }}</span><strong>{% if dashboard_intelligence.score_available %}{{ dashboard_intelligence.score }}/100{% else %}—{% endif %}</strong><small>{{ dashboard_intelligence.headline }}</small></div>
+        <div class="future-signal"><span>{{ t('projected_spend') }}</span><strong>{% if dashboard_intelligence.forecast_available %}{{ currency_symbol }}{{ dashboard_intelligence.projected_expense|money }}{% else %}—{% endif %}</strong><small>{{ t('month_forecast') }}</small></div>
+        <div class="future-signal"><span>{{ t('projected_savings') }}</span><strong>{% if dashboard_intelligence.projected_savings is not none %}{{ currency_symbol }}{{ dashboard_intelligence.projected_savings|money }}{% else %}—{% endif %}</strong><small>{% if dashboard_intelligence.forecast_available %}At your current recorded pace{% else %}{{ t('not_enough') }}{% endif %}</small></div>
+        <div class="future-signal"><span>{{ t('risk_signal') }}</span><strong>{{ dashboard_intelligence.risks|length }}</strong><small>{% if dashboard_intelligence.risks %}Detected before month-end{% else %}No projected budget breach detected{% endif %}</small></div>
+      </div>
+      <a class="future-open" href="/intelligence">{{ t('open_intelligence') }} →</a>
+    </section>
 
     <!-- GAMIFICATION -->
     <section class="gamification-card">

@@ -1,46 +1,10 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="import-page">
-<div class="form-page-header"><span class="eyebrow">SMART DATA IMPORT</span><h1>Bring your transactions in.</h1>
-<p>Upload a bank PDF, password-protected PDF, CSV or Excel statement. Sigora detects the structure automatically.</p></div>
-{% if error %}<div class="settings-message error">{{ error }}</div>{% endif %}
-{% if success %}<div class="settings-message success">Imported {{ imported_count }} transaction(s). Skipped {{ skipped_count }} duplicate(s){% if error_count %}; {{ error_count }} row(s) need attention.{% endif %}</div>{% endif %}
-
-<div class="import-grid"><section class="import-drop-card"><div class="upload-icon-modern">⇧</div><h2>Upload statement</h2>
-<form method="POST" enctype="multipart/form-data">
-<label for="statementFile" class="file-drop-zone"><strong id="fileName">Choose a file</strong><span>PDF · CSV · XLSX · XLS</span></label>
-<input type="file" id="statementFile" name="file" accept=".pdf,.csv,.xlsx,.xls" required>
-{% if password_required or request.form.get('pdf_password') %}
-<label>PDF password (only for encrypted PDFs)<input type="password" name="pdf_password" autocomplete="off"></label>
-{% endif %}
-<button class="hero-button" type="submit">{% if preview %}Analyze again{% else %}Analyze statement{% endif %}</button>
-</form>
-{% if password_required %}<p class="settings-muted">The password is used only to unlock this PDF and is never saved.</p>{% endif %}
-</section>
-<section class="import-how-card"><span class="eyebrow">INTELLIGENT IMPORT</span><h2>Sigora does the messy work.</h2>
-<div class="import-step"><b>01</b><div><strong>Detect</strong><p>Finds dates, narration, amount, debit/credit and other bank-specific columns.</p></div></div>
-<div class="import-step"><b>02</b><div><strong>Normalize</strong><p>Converts different bank formats into Sigora transactions and infers income/expense.</p></div></div>
-<div class="import-step"><b>03</b><div><strong>Protect</strong><p>Checks duplicates and validates rows before anything is saved.</p></div></div>
-</section></div>
-
-{% if preview %}
-<section class="settings-card" style="margin-top:24px">
-<div class="settings-card-heading"><div><span class="settings-label">IMPORT PREVIEW</span><h2>{{ importable_count }} transaction(s) ready</h2></div></div>
-<p class="settings-muted">Found {{ total_found }} usable transaction(s) from {{ original_filename }}. {{ skipped_count }} duplicate(s) will be skipped.</p>
-<div style="overflow:auto"><table class="data-table"><thead><tr><th>Date</th><th>Description</th><th>Type</th><th>Category</th><th>Amount</th></tr></thead><tbody>
-{% for row in preview_rows %}<tr><td>{{ row.date }}</td><td>{{ row.description }}</td><td>{{ row.transaction_type|title }}</td><td>{{ row.category }}</td><td>{{ currency_symbol }}{{ "%.2f"|format(row.amount) }}</td></tr>{% endfor %}
-</tbody></table></div>
-{% if importable_count > 200 %}<p class="settings-muted">Showing the first 200 rows; all {{ importable_count }} will be imported.</p>{% endif %}
-<form method="POST" enctype="multipart/form-data" style="margin-top:18px">
-<input type="hidden" name="confirm" value="1">
-<label for="confirmFile">Select the same statement again to confirm import</label>
-<input type="file" id="confirmFile" name="file" accept=".pdf,.csv,.xlsx,.xls" required>
-{% if detected_format == 'pdf' %}<p class="settings-muted">If the PDF is protected, enter its password again. It is used only for this request and never stored.</p><input type="password" name="pdf_password" autocomplete="off">{% endif %}
-<button class="hero-button" type="submit">Confirm & import {{ importable_count }} transaction(s)</button>
-</form>
-</section>
-{% endif %}
-{% if errors %}<div class="import-errors"><h3>Rows to review</h3>{% for item in errors %}<p>{{ item }}</p>{% endfor %}</div>{% endif %}
-</div>
-<script>document.getElementById('statementFile').addEventListener('change',function(){document.getElementById('fileName').textContent=this.files.length?this.files[0].name:'Choose a file';});</script>
-{% endblock %}
+{% extends "base.html" %}{% block content %}
+<div class="import-page"><div class="form-page-header"><span class="eyebrow">{{ t('smart_import') }}</span><h1>{{ t('bring_transactions') }}</h1><p>{{ t('import_sub') }}</p></div>
+{% if error %}<div class="settings-message error">{{ error }}</div>{% endif %}{% if success %}<div class="settings-message success">{{ t('imported') }} {{ imported_count }} · {{ t('duplicates_skipped') }} {{ skipped_count }}{% if error_count %} · {{ error_count }} {{ t('rows_attention') }}{% endif %}</div>{% endif %}
+<div class="import-grid"><section class="import-drop-card"><div class="upload-icon-modern">⇧</div><h2>{{ t('upload_statement') }}</h2><form method="POST" enctype="multipart/form-data">
+{% if accounts %}<label>{{ t('import_into') }}<select name="account_id"><option value="">{{ t('general_transactions') }}</option>{% for a in accounts %}<option value="{{ a.id }}" {% if selected_account_id|string==a.id|string %}selected{% endif %}>{{ a.account_name or a.institution_name }} · {{ a.institution_name }}</option>{% endfor %}</select></label>{% endif %}
+<label for="statementFile" class="file-drop-zone"><strong id="fileName">{{ t('choose_file') }}</strong><span>PDF · CSV · TSV · TXT · XLSX · XLS · OFX · QFX</span></label><input type="file" id="statementFile" name="file" accept=".pdf,.csv,.tsv,.txt,.xlsx,.xls,.ofx,.qfx" required>
+{% if password_required or request.form.get('pdf_password') %}<label>{{ t('pdf_password') }}<input type="password" name="pdf_password" autocomplete="off"></label>{% endif %}<button class="hero-button" type="submit">{% if preview %}{{ t('analyze_again') }}{% else %}{{ t('analyze_statement') }}{% endif %}</button></form>{% if password_required %}<p class="settings-muted">{{ t('password_not_saved') }}</p>{% endif %}</section>
+<section class="import-how-card"><span class="eyebrow">{{ t('intelligent_import') }}</span><h2>{{ t('messy_work') }}</h2><div class="import-step"><b>01</b><div><strong>{{ t('detect') }}</strong><p>{{ t('detect_desc') }}</p></div></div><div class="import-step"><b>02</b><div><strong>{{ t('normalize') }}</strong><p>{{ t('normalize_desc') }}</p></div></div><div class="import-step"><b>03</b><div><strong>{{ t('protect') }}</strong><p>{{ t('protect_desc') }}</p></div></div></section></div>
+{% if preview %}<section class="settings-card" style="margin-top:24px"><div class="settings-card-heading"><div><span class="settings-label">{{ t('import_preview') }}</span><h2>{{ importable_count }} {{ t('transactions_ready') }}</h2></div></div><p class="settings-muted">{{ t('found') }} {{ total_found }} · {{ skipped_count }} {{ t('duplicates_skipped') }}</p><div style="overflow:auto"><table class="data-table"><thead><tr><th>{{ t('date') }}</th><th>{{ t('description') }}</th><th>{{ t('type') }}</th><th>{{ t('category') }}</th><th>{{ t('amount') }}</th></tr></thead><tbody>{% for row in preview_rows %}<tr><td>{{ row.date }}</td><td>{{ row.description }}</td><td>{{ row.transaction_type|title }}</td><td>{{ row.category }}</td><td>{{ currency_symbol }}{{ "%.2f"|format(row.amount) }}</td></tr>{% endfor %}</tbody></table></div><form method="POST" enctype="multipart/form-data" style="margin-top:18px"><input type="hidden" name="confirm" value="1">{% if selected_account_id %}<input type="hidden" name="account_id" value="{{ selected_account_id }}">{% endif %}<label>{{ t('select_same_file') }}</label><input type="file" name="file" accept=".pdf,.csv,.tsv,.txt,.xlsx,.xls,.ofx,.qfx" required>{% if detected_format == 'pdf' %}<input type="password" name="pdf_password" autocomplete="off" placeholder="{{ t('pdf_password') }}">{% endif %}<button class="hero-button" type="submit">{{ t('confirm_import') }} {{ importable_count }}</button></form></section>{% endif %}
+{% if errors %}<div class="import-errors"><h3>{{ t('rows_review') }}</h3>{% for item in errors %}<p>{{ item }}</p>{% endfor %}</div>{% endif %}</div><script>document.getElementById('statementFile').addEventListener('change',function(){document.getElementById('fileName').textContent=this.files.length?this.files[0].name:'{{ t("choose_file") }}';});</script>{% endblock %}

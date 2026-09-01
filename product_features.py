@@ -47,6 +47,7 @@ def ensure_feature_schema():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id, created_at DESC)")
             cur.execute("DELETE FROM password_reset_tokens WHERE expires_at < CURRENT_TIMESTAMP - INTERVAL '1 day'")
             cur.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'INR'")
+            cur.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS financial_account_id INTEGER REFERENCES financial_accounts(id) ON DELETE SET NULL")
             cur.execute("ALTER TABLE budgets ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'INR'")
             cur.execute("ALTER TABLE goals ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'INR'")
             cur.execute("UPDATE transactions t SET currency=COALESCE(t.currency,u.currency,'INR') FROM users u WHERE u.id=t.user_id AND (t.currency IS NULL OR t.currency='')")

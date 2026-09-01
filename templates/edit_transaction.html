@@ -59,6 +59,8 @@
                value="{{ transaction['date'] }}">
     </div>
 
+    <div class="mb-3"><label class="form-label">{{ t('Payment account') }}</label><select name="financial_account_id" class="form-control"><option value="">{{ t('Cash / unassigned') }}</option>{% for a in accounts %}<option value="{{ a.id }}" {% if transaction.financial_account_id == a.id %}selected{% endif %}>{{ a.account_name or a.institution_name }} · {{ a.institution_name }}{% if a.masked_account %} · •••• {{ a.masked_account[-4:] }}{% endif %}</option>{% endfor %}</select></div>
+
     <button type="submit" class="btn btn-success">
         Save Changes
     </button>

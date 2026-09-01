@@ -40,9 +40,9 @@ def get_connection():
 def get_transactions(user_id):
     conn=get_connection()
     with conn.cursor() as cur:
-        cur.execute("SELECT id,transaction_type,amount,currency,category,description,date,source,created_at FROM transactions WHERE user_id=%s ORDER BY date DESC,id DESC",(user_id,)); rows=cur.fetchall()
+        cur.execute("SELECT t.id,t.transaction_type,t.amount,t.currency,t.category,t.description,t.date,t.source,t.created_at,t.financial_account_id,f.account_name,f.institution_name FROM transactions t LEFT JOIN financial_accounts f ON f.id=t.financial_account_id WHERE t.user_id=%s ORDER BY t.date DESC,t.id DESC",(user_id,)); rows=cur.fetchall()
     conn.close()
-    return [{"id":r[0],"transaction_type":r[1],"amount":float(r[2]),"currency":r[3] or "INR","category":r[4],"description":r[5],"date":str(r[6]),"source":r[7],"created_at":str(r[8])} for r in rows]
+    return [{"id":r[0],"transaction_type":r[1],"amount":float(r[2]),"currency":r[3] or "INR","category":r[4],"description":r[5],"date":str(r[6]),"source":r[7],"created_at":str(r[8]),"financial_account_id":r[9],"account_name":r[10],"institution_name":r[11]} for r in rows]
 
 
 def delete_transaction(user_id, transaction_id):
@@ -70,10 +70,10 @@ def delete_transaction(user_id, transaction_id):
 def get_transaction(user_id,transaction_id):
     conn=get_connection()
     with conn.cursor() as cur:
-        cur.execute("SELECT id,transaction_type,amount,currency,category,description,date,source,created_at FROM transactions WHERE id=%s AND user_id=%s",(transaction_id,user_id)); r=cur.fetchone()
+        cur.execute("SELECT id,transaction_type,amount,currency,category,description,date,source,created_at,financial_account_id FROM transactions WHERE id=%s AND user_id=%s",(transaction_id,user_id)); r=cur.fetchone()
     conn.close()
     if r is None: return None
-    return {"id":r[0],"transaction_type":r[1],"amount":float(r[2]),"currency":r[3] or "INR","category":r[4],"description":r[5],"date":str(r[6]),"source":r[7],"created_at":str(r[8])}
+    return {"id":r[0],"transaction_type":r[1],"amount":float(r[2]),"currency":r[3] or "INR","category":r[4],"description":r[5],"date":str(r[6]),"source":r[7],"created_at":str(r[8]),"financial_account_id":r[9]}
 
 
 def update_transaction(
@@ -116,13 +116,13 @@ def update_transaction(
     conn.close()
 
 
-def add_transaction(user_id, transaction_type, amount, category, description, date, source="manual", currency=None):
+def add_transaction(user_id, transaction_type, amount, category, description, date, source="manual", currency=None, financial_account_id=None):
     conn=get_connection()
     try:
         with conn.cursor() as cur:
             if not currency:
                 cur.execute("SELECT currency FROM users WHERE id=%s", (user_id,)); row=cur.fetchone(); currency=(row[0] if row else "INR") or "INR"
-            cur.execute("""INSERT INTO transactions (user_id,transaction_type,amount,currency,category,description,date,source) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""", (user_id,transaction_type,amount,currency,category,description,date,source))
+            cur.execute("""INSERT INTO transactions (user_id,transaction_type,amount,currency,category,description,date,source,financial_account_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""", (user_id,transaction_type,amount,currency,category,description,date,source,financial_account_id))
             tid=cur.fetchone()[0]
         conn.commit(); return tid
     except Exception:
@@ -816,13 +816,86 @@ def find_existing_transaction_keys(user_id, candidates):
 # FINANCIAL ACCOUNTS / BANK CONNECTIONS
 # =====================================================
 
+_financial_balance_schema_ready = False
+
+def ensure_financial_account_balance_schema():
+    """Add a balance checkpoint without destructive migrations.
+
+    balance is the user/provider supplied balance at balance_as_of. Manual
+    transactions created after that checkpoint are applied when displaying a
+    live balance, preventing statement imports from being counted twice.
+    """
+    global _financial_balance_schema_ready
+    if _financial_balance_schema_ready:
+        return
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("ALTER TABLE financial_accounts ADD COLUMN IF NOT EXISTS balance_as_of TIMESTAMP")
+        conn.commit()
+        _financial_balance_schema_ready = True
+    finally:
+        conn.close()
+
+def _account_live_balance(base_balance, account_type, balance_as_of, income_after, expense_after):
+    if base_balance is None:
+        return None
+    base = float(base_balance)
+    typ = str(account_type or '').lower()
+    income_after = float(income_after or 0)
+    expense_after = float(expense_after or 0)
+    if typ == 'credit_card':
+        return max(0.0, base + expense_after - income_after)
+    if typ in {'loan', 'liability', 'bnpl'}:
+        # Remaining principal/outstanding is a checkpoint value. Generic expense
+        # transactions can include interest, so do not guess principal reduction.
+        return max(0.0, base)
+    return base + income_after - expense_after
+
+
 def list_financial_accounts(user_id):
+    ensure_financial_account_balance_schema()
     conn=get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("""SELECT id,provider,provider_account_id,institution_name,account_name,account_type,country,currency,masked_account,balance,status,last_synced_at,created_at FROM financial_accounts WHERE user_id=%s ORDER BY id DESC""", (user_id,))
+            cur.execute("""SELECT id,provider,provider_account_id,institution_name,account_name,account_type,country,currency,masked_account,balance,status,last_synced_at,created_at,balance_as_of FROM financial_accounts WHERE user_id=%s ORDER BY id DESC""", (user_id,))
             rows=cur.fetchall()
-        return [{"id":r[0],"provider":r[1],"provider_account_id":r[2],"institution_name":r[3],"account_name":r[4],"account_type":r[5],"country":r[6],"currency":r[7],"masked_account":r[8],"balance":float(r[9]) if r[9] is not None else None,"status":r[10],"last_synced_at":str(r[11]) if r[11] else None,"created_at":str(r[12])} for r in rows]
+            out=[]
+            for r in rows:
+                cur.execute("""SELECT
+                    COALESCE(SUM(CASE WHEN transaction_type='income' AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0),
+                    COALESCE(SUM(CASE WHEN transaction_type='expense' AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0)
+                    FROM transactions WHERE user_id=%s AND financial_account_id=%s""",
+                    (r[13],r[13],r[13],r[13],user_id,r[0]))
+                movement=cur.fetchone()
+                live=_account_live_balance(r[9],r[5],r[13],movement[0],movement[1])
+                out.append({"id":r[0],"provider":r[1],"provider_account_id":r[2],"institution_name":r[3],"account_name":r[4],"account_type":r[5],"country":r[6],"currency":r[7],"masked_account":r[8],"balance":float(r[9]) if r[9] is not None else None,"live_balance":live,"status":r[10],"last_synced_at":str(r[11]) if r[11] else None,"created_at":str(r[12]),"balance_as_of":str(r[13]) if r[13] else None})
+        return out
+    finally: conn.close()
+
+
+
+def get_financial_account_activity(user_id, account_id, limit=100):
+    """All transactions assigned to an owned account, manual or imported."""
+    ensure_financial_account_balance_schema()
+    conn=get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT balance,account_type,balance_as_of FROM financial_accounts WHERE user_id=%s AND id=%s",(user_id,account_id))
+            ar=cur.fetchone()
+            if not ar:
+                return {"transactions":[],"income":0.0,"expenses":0.0,"count":0,"first_date":None,"last_date":None,"categories":[],"live_balance":None}
+            cur.execute("""SELECT id,transaction_type,amount,currency,category,description,date,source,created_at FROM transactions
+                           WHERE user_id=%s AND financial_account_id=%s ORDER BY date DESC,id DESC LIMIT %s""",(user_id,account_id,limit)); rows=cur.fetchall()
+            cur.execute("""SELECT COALESCE(SUM(CASE WHEN transaction_type='income' THEN amount ELSE 0 END),0),
+                         COALESCE(SUM(CASE WHEN transaction_type='expense' THEN amount ELSE 0 END),0),COUNT(*),MIN(date),MAX(date),
+                         COALESCE(SUM(CASE WHEN transaction_type='income' AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0),
+                         COALESCE(SUM(CASE WHEN transaction_type='expense' AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0)
+                         FROM transactions WHERE user_id=%s AND financial_account_id=%s""",(ar[2],ar[2],ar[2],ar[2],user_id,account_id)); sm=cur.fetchone()
+            cur.execute("""SELECT category,COALESCE(SUM(amount),0) FROM transactions WHERE user_id=%s AND financial_account_id=%s AND transaction_type='expense' GROUP BY category ORDER BY SUM(amount) DESC LIMIT 5""",(user_id,account_id)); cats=cur.fetchall()
+        tx=[{"id":r[0],"transaction_type":r[1],"amount":float(r[2]),"currency":r[3] or "INR","category":r[4],"description":r[5],"date":str(r[6]),"source":r[7],"created_at":str(r[8])} for r in rows]
+        live=_account_live_balance(ar[0],ar[1],ar[2],sm[5],sm[6])
+        return {"transactions":tx,"income":float(sm[0]),"expenses":float(sm[1]),"count":int(sm[2]),"first_date":str(sm[3]) if sm[3] else None,"last_date":str(sm[4]) if sm[4] else None,"categories":[{"category":r[0],"amount":float(r[1])} for r in cats],"live_balance":live}
     finally: conn.close()
 
 
@@ -874,7 +947,7 @@ def import_external_transaction(user_id, tx, financial_account_id=None):
             elif any(x in desc for x in ("rent","housing")): category="Housing"
             elif any(x in desc for x in ("electricity","water","gas","recharge","jio","airtel")): category="Bills"
             else: category="Other"
-            cur.execute("""INSERT INTO transactions(user_id,transaction_type,amount,currency,category,description,date,source) VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",(user_id,tx["transaction_type"],tx["amount"],tx.get("currency","INR"),category,tx["description"],tx["date"],tx.get("source","setu_aa")))
+            cur.execute("""INSERT INTO transactions(user_id,transaction_type,amount,currency,category,description,date,source,financial_account_id) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",(user_id,tx["transaction_type"],tx["amount"],tx.get("currency","INR"),category,tx["description"],tx["date"],tx.get("source","setu_aa"),financial_account_id))
             tid=cur.fetchone()[0]
             cur.execute("INSERT INTO external_transactions(user_id,financial_account_id,provider,external_id,transaction_id) VALUES(%s,%s,%s,%s,%s)",(user_id,financial_account_id,tx["source"],tx["external_id"],tid))
         conn.commit(); return {"created":True,"transaction_id":tid}
@@ -904,9 +977,9 @@ def upsert_financial_account(user_id, provider, institution_name, account, count
                 existing = cur.fetchone()
             if existing:
                 aid = existing[0]
-                cur.execute("""UPDATE financial_accounts SET institution_name=%s,account_name=%s,account_type=%s,country=%s,currency=%s,masked_account=%s,balance=%s,status='connected',last_synced_at=CURRENT_TIMESTAMP WHERE id=%s AND user_id=%s""", (institution_name, account_name, account_type, country, currency, masked, balance, aid, user_id))
+                cur.execute("""UPDATE financial_accounts SET institution_name=%s,account_name=%s,account_type=%s,country=%s,currency=%s,masked_account=%s,balance=%s,status='connected',last_synced_at=CURRENT_TIMESTAMP,balance_as_of=CASE WHEN %s IS NOT NULL THEN CURRENT_TIMESTAMP ELSE balance_as_of END WHERE id=%s AND user_id=%s""", (institution_name, account_name, account_type, country, currency, masked, balance, balance, aid, user_id))
             else:
-                cur.execute("""INSERT INTO financial_accounts(user_id,provider,provider_account_id,institution_name,account_name,account_type,country,currency,masked_account,balance,status,last_synced_at) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'connected',CURRENT_TIMESTAMP) RETURNING id""", (user_id, provider, provider_account_id, institution_name, account_name, account_type, country, currency, masked, balance))
+                cur.execute("""INSERT INTO financial_accounts(user_id,provider,provider_account_id,institution_name,account_name,account_type,country,currency,masked_account,balance,status,last_synced_at,balance_as_of) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'connected',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING id""", (user_id, provider, provider_account_id, institution_name, account_name, account_type, country, currency, masked, balance))
                 aid = cur.fetchone()[0]
         conn.commit(); return aid
     except Exception:
@@ -928,4 +1001,86 @@ def get_bank_connection_by_consent(consent_id):
         with conn.cursor() as cur:
             cur.execute("SELECT user_id,status FROM bank_connections WHERE consent_id=%s",(consent_id,)); r=cur.fetchone()
         return {"user_id":r[0],"status":r[1]} if r else None
+    finally: conn.close()
+
+
+def create_manual_financial_account(user_id, institution_name, account_name, account_type='savings', currency='INR', masked_account=None, balance=None, country='India'):
+    """Create a user-managed financial account for statement imports. Never stores credentials."""
+    ensure_financial_account_balance_schema()
+    conn=get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO financial_accounts
+                (user_id,provider,institution_name,account_name,account_type,country,currency,masked_account,balance,status,last_synced_at,balance_as_of)
+                VALUES(%s,'statement',%s,%s,%s,%s,%s,%s,%s,'statement',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING id""",
+                (user_id,institution_name,account_name or institution_name,account_type,country,currency,masked_account,balance))
+            aid=cur.fetchone()[0]
+        conn.commit(); return aid
+    except Exception:
+        conn.rollback(); raise
+    finally: conn.close()
+
+
+def get_financial_account(user_id, account_id):
+    conn=get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT id,provider,institution_name,account_name,account_type,country,currency,masked_account,balance,status,last_synced_at,balance_as_of
+                           FROM financial_accounts WHERE user_id=%s AND id=%s""",(user_id,account_id)); r=cur.fetchone()
+        if not r: return None
+        return {"id":r[0],"provider":r[1],"institution_name":r[2],"account_name":r[3],"account_type":r[4],"country":r[5],"currency":r[6],"masked_account":r[7],"balance":float(r[8]) if r[8] is not None else None,"status":r[9],"last_synced_at":str(r[10]) if r[10] else None,"balance_as_of":str(r[11]) if len(r)>11 and r[11] else None}
+    finally: conn.close()
+
+
+def touch_financial_account(user_id, account_id, balance=None):
+    ensure_financial_account_balance_schema()
+    conn=get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""UPDATE financial_accounts SET last_synced_at=CURRENT_TIMESTAMP,
+                           balance=COALESCE(%s,balance),
+                           balance_as_of=CASE WHEN %s IS NOT NULL THEN CURRENT_TIMESTAMP ELSE balance_as_of END
+                           WHERE user_id=%s AND id=%s""",(balance,balance,user_id,account_id))
+        conn.commit()
+    finally: conn.close()
+
+def find_duplicate_manual_financial_account(user_id, institution_name, account_name, account_type, masked_account=None):
+    conn=get_connection()
+    try:
+        with conn.cursor() as cur:
+            if masked_account:
+                cur.execute("""SELECT id FROM financial_accounts WHERE user_id=%s AND provider='statement' AND lower(trim(institution_name))=lower(trim(%s)) AND account_type=%s AND masked_account=%s LIMIT 1""",(user_id,institution_name,account_type,masked_account))
+            else:
+                cur.execute("""SELECT id FROM financial_accounts WHERE user_id=%s AND provider='statement' AND lower(trim(institution_name))=lower(trim(%s)) AND lower(trim(account_name))=lower(trim(%s)) AND account_type=%s AND COALESCE(masked_account,'')='' LIMIT 1""",(user_id,institution_name,account_name,account_type))
+            r=cur.fetchone(); return r[0] if r else None
+    finally: conn.close()
+
+def update_financial_account(user_id, account_id, institution_name, account_name, account_type, currency, masked_account=None, balance=None):
+    conn=get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""UPDATE financial_accounts SET institution_name=%s,account_name=%s,account_type=%s,currency=%s,masked_account=%s,balance=%s,
+                           balance_as_of=CASE WHEN %s IS NOT NULL THEN CURRENT_TIMESTAMP ELSE balance_as_of END
+                           WHERE user_id=%s AND id=%s""",(institution_name,account_name,account_type,currency,masked_account,balance,balance,user_id,account_id))
+        conn.commit()
+    finally: conn.close()
+
+def delete_financial_account(user_id, account_id):
+    conn=get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE transactions SET financial_account_id=NULL WHERE user_id=%s AND financial_account_id=%s",(user_id,account_id))
+            cur.execute("DELETE FROM financial_accounts WHERE user_id=%s AND id=%s",(user_id,account_id))
+        conn.commit()
+    finally: conn.close()
+
+def assign_transaction_account(user_id, transaction_id, account_id=None):
+    conn=get_connection()
+    try:
+        with conn.cursor() as cur:
+            if account_id:
+                cur.execute("SELECT 1 FROM financial_accounts WHERE id=%s AND user_id=%s",(account_id,user_id))
+                if not cur.fetchone(): raise ValueError('Invalid account')
+            cur.execute("UPDATE transactions SET financial_account_id=%s WHERE id=%s AND user_id=%s",(account_id,transaction_id,user_id))
+        conn.commit()
     finally: conn.close()
