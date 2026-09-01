@@ -768,13 +768,13 @@ def sync_financial_alerts(user_id, budgets=None, goals=None):
                     cur.execute(
                         f"""DELETE FROM alerts
                             WHERE user_id=%s
-                              AND (link='/budgets' OR fingerprint LIKE 'budget-%')
+                              AND (link='/budgets' OR fingerprint LIKE 'budget-%%')
                               AND (fingerprint IS NULL OR fingerprint NOT IN ({placeholders}))""",
                         [user_id] + active_budget_fingerprints
                     )
                 else:
                     cur.execute(
-                        "DELETE FROM alerts WHERE user_id=%s AND (link='/budgets' OR fingerprint LIKE 'budget-%')",
+                        "DELETE FROM alerts WHERE user_id=%s AND (link='/budgets' OR fingerprint LIKE 'budget-%%')",
                         (user_id,)
                     )
             if goals is not None:
@@ -783,13 +783,13 @@ def sync_financial_alerts(user_id, budgets=None, goals=None):
                     cur.execute(
                         f"""DELETE FROM alerts
                             WHERE user_id=%s
-                              AND (link='/goals' OR fingerprint LIKE 'goal-complete-%' OR fingerprint LIKE 'goal-deadline-%')
+                              AND (link='/goals' OR fingerprint LIKE 'goal-complete-%%' OR fingerprint LIKE 'goal-deadline-%%')
                               AND (fingerprint IS NULL OR fingerprint NOT IN ({placeholders}))""",
                         [user_id] + active_goal_fingerprints
                     )
                 else:
                     cur.execute(
-                        "DELETE FROM alerts WHERE user_id=%s AND (link='/goals' OR fingerprint LIKE 'goal-complete-%' OR fingerprint LIKE 'goal-deadline-%')",
+                        "DELETE FROM alerts WHERE user_id=%s AND (link='/goals' OR fingerprint LIKE 'goal-complete-%%' OR fingerprint LIKE 'goal-deadline-%%')",
                         (user_id,)
                     )
         conn.commit()
