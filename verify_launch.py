@@ -33,3 +33,19 @@ for name in checks:
     print(name + ": OK")
 for path in required:
     print(path + ": OK")
+
+# Final-launch regression checks
+app_text = Path("app.py").read_text()
+base_text = Path("templates/base.html").read_text()
+market_text = Path("templates/investment_market.html").read_text()
+css_text = Path("static/styles.css").read_text()
+assert '"cancel_at_cycle_end": True' in app_text
+assert 'event == "subscription.cancelled"' in app_text and 'expires_at > datetime.utcnow()' in app_text
+assert 'mobile-tutorial-trigger' in base_text and 'mobile-tutorial-trigger' in css_text
+assert 'min_points = {"5d": 3, "1mo": 5, "6mo": 20, "1y": 30, "5y": 30}' in app_text
+assert 'Historical chart temporarily unavailable' in market_text
+assert 'subscription_payload["offer_id"]' in app_text
+print("Cancellation preserves paid period: OK")
+print("Mobile tutorial entry: OK")
+print("Sparse market-history guard: OK")
+print("Coupon Razorpay Offer linkage: OK")

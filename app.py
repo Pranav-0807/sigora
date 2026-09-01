@@ -1884,9 +1884,21 @@ def premium_cancel():
     try:
         response = requests.post(
             f"https://api.razorpay.com/v1/subscriptions/{subscription_id}/cancel",
-            auth=(key_id, key_secret), json={"cancel_at_cycle_end": 1}, timeout=15
+            auth=(key_id, key_secret), json={"cancel_at_cycle_end": True}, timeout=15
         )
         response.raise_for_status()
+        cancel_data = response.json() if response.content else {}
+        cancel_end = None
+        if cancel_data.get("current_end"):
+            try:
+                cancel_end = datetime.utcfromtimestamp(int(cancel_data["current_end"]))
+            except (ValueError, TypeError, OSError):
+                cancel_end = None
+        # cancel_at_cycle_end stops renewal, not already-paid access.
+        # Preserve the entitlement immediately from Razorpay's authoritative current_end.
+        if cancel_end and cancel_end > datetime.utcnow():
+            from product_features import set_premium_status
+            set_premium_status(user["id"], True, cancel_end, cancel_data.get("status"))
         mark_subscription_cancellation_requested(user["id"], True)
         return redirect("/premium?cancel=requested")
     except Exception as exc:
@@ -1912,13 +1924,13 @@ def razorpay_webhook():
     if not user_id:
         return jsonify({"ok": True})
     active_events = {"subscription.activated", "subscription.charged"}
-    # A cancellation may only stop future renewals. The customer keeps access
-    # through the already-paid current_end billing period.
+    # Razorpay can cancel at cycle end. A cancellation event must not remove
+    # access before current_end if a paid period is still in progress.
     terminal_events = {"subscription.halted", "subscription.completed"}
     expires_at = None
     if entity.get("current_end"):
         try:
-            expires_at = datetime.fromtimestamp(int(entity["current_end"]))
+            expires_at = datetime.utcfromtimestamp(int(entity["current_end"]))
         except (ValueError, TypeError, OSError):
             expires_at = None
     if event in active_events:
@@ -1930,9 +1942,7 @@ def razorpay_webhook():
             redeem_subscription_coupon(subscription_id)
     elif event == "subscription.cancelled":
         from product_features import set_premium_status
-        now = datetime.now(expires_at.tzinfo) if expires_at and getattr(expires_at, "tzinfo", None) else datetime.now()
-        if expires_at and expires_at > now:
-            # Renewal is cancelled, but this billing period has already been paid.
+        if expires_at and expires_at > datetime.utcnow():
             set_premium_status(int(user_id), True, expires_at, entity.get("status"))
             mark_subscription_cancellation_requested(int(user_id), True)
         else:
@@ -2289,39 +2299,60 @@ def _market_search(query):
         return []
 
 def _market_chart(symbol, range_="1mo", interval="1d"):
+    """Fetch market metadata plus a real historical series; never fabricate chart points."""
     try:
-        url=f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-        r=requests.get(url,params={"range":range_,"interval":interval},headers={"User-Agent":"Mozilla/5.0"},timeout=6); r.raise_for_status()
-        result=(r.json().get("chart",{}).get("result") or [None])[0]
-        if not result: return None
-        meta=result.get("meta",{}); ts=result.get("timestamp",[]); quote=(result.get("indicators",{}).get("quote") or [{}])[0]; closes=quote.get("close",[])
-        points=[{"t":t,"v":v} for t,v in zip(ts,closes) if v is not None]
-
-        # Yahoo occasionally returns only one historical point for BSE symbols.
-        # If that happens, use the equivalent NSE listing for chart history.
-        if len(points) < 2 and symbol.upper().endswith(".BO"):
-            fallback_symbol=symbol[:-3]+".NS"
-            fr=requests.get(
-                f"https://query1.finance.yahoo.com/v8/finance/chart/{fallback_symbol}",
-                params={"range":range_,"interval":interval},
-                headers={"User-Agent":"Mozilla/5.0"},
-                timeout=6
+        def fetch_chart(fetch_symbol):
+            r = requests.get(
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{fetch_symbol}",
+                params={"range": range_, "interval": interval},
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=6,
             )
-            fr.raise_for_status()
-            fresult=(fr.json().get("chart",{}).get("result") or [None])[0]
-            if fresult:
-                fts=fresult.get("timestamp",[])
-                fquote=(fresult.get("indicators",{}).get("quote") or [{}])[0]
-                fcloses=fquote.get("close",[])
-                fallback_points=[{"t":t,"v":v} for t,v in zip(fts,fcloses) if v is not None]
-                if len(fallback_points) >= 2:
-                    points=fallback_points
+            r.raise_for_status()
+            result = (r.json().get("chart", {}).get("result") or [None])[0]
+            if not result:
+                return None, []
+            ts = result.get("timestamp", [])
+            quote = (result.get("indicators", {}).get("quote") or [{}])[0]
+            closes = quote.get("close", [])
+            points = [{"t": t, "v": v} for t, v in zip(ts, closes) if v is not None]
+            return result, points
 
-        price=meta.get("regularMarketPrice")
-        prev=meta.get("chartPreviousClose") or meta.get("previousClose")
-        change=(price-prev) if price is not None and prev else None
-        pct=(change/prev*100) if change is not None and prev else None
-        return {"symbol":symbol,"name":meta.get("longName") or meta.get("shortName") or symbol,"exchange":meta.get("exchangeName") or meta.get("fullExchangeName") or "","currency":meta.get("currency") or "","price":price,"previous_close":prev,"change":change,"change_pct":pct,"day_high":meta.get("regularMarketDayHigh"),"day_low":meta.get("regularMarketDayLow"),"fifty_two_high":meta.get("fiftyTwoWeekHigh"),"fifty_two_low":meta.get("fiftyTwoWeekLow"),"points":points}
+        result, points = fetch_chart(symbol)
+        if not result:
+            return None
+        meta = result.get("meta", {})
+
+        # A two-point multi-month chart is misleading: Chart.js renders it as a
+        # perfect diagonal. BSE history can be sparse on Yahoo, so use the same
+        # company's NSE listing for HISTORY only when the BSE series is sparse.
+        min_points = {"5d": 3, "1mo": 5, "6mo": 20, "1y": 30, "5y": 30}.get(range_, 3)
+        if len(points) < min_points and symbol.upper().endswith(".BO"):
+            fallback_symbol = symbol[:-3] + ".NS"
+            try:
+                _, fallback_points = fetch_chart(fallback_symbol)
+                if len(fallback_points) >= min_points:
+                    points = fallback_points
+            except Exception:
+                pass
+
+        # Do not draw a fake-looking straight trend from only one/two sparse
+        # observations. The UI will clearly report unavailable history instead.
+        if len(points) < 3:
+            points = []
+
+        price = meta.get("regularMarketPrice")
+        prev = meta.get("chartPreviousClose") or meta.get("previousClose")
+        change = (price - prev) if price is not None and prev else None
+        pct = (change / prev * 100) if change is not None and prev else None
+        return {
+            "symbol": symbol, "name": meta.get("longName") or meta.get("shortName") or symbol,
+            "exchange": meta.get("exchangeName") or meta.get("fullExchangeName") or "",
+            "currency": meta.get("currency") or "", "price": price, "previous_close": prev,
+            "change": change, "change_pct": pct, "day_high": meta.get("regularMarketDayHigh"),
+            "day_low": meta.get("regularMarketDayLow"), "fifty_two_high": meta.get("fiftyTwoWeekHigh"),
+            "fifty_two_low": meta.get("fiftyTwoWeekLow"), "points": points,
+        }
     except Exception:
         return None
 
