@@ -9,7 +9,7 @@
 
         <div>
             <div class="dashboard-panel-eyebrow">
-                PERSONAL FINANCE
+                {{ t('personal_finance_label') }}
             </div>
 
             <h1>{{ t('welcome') }}, <span>{{ user.name if user.name else "there" }}.</span></h1>
@@ -34,10 +34,10 @@
     <section class="sigora-future-card">
       <div class="sigora-future-head"><div><span class="eyebrow">SIGORA INTELLIGENCE</span><h2>{{ t('next_title') }}</h2><p>{{ t('next_sub') }}</p></div></div>
       <div class="sigora-future-grid">
-        <div class="future-signal accent"><span>{{ t('health_score') }}</span><strong>{% if dashboard_intelligence.score_available %}{{ dashboard_intelligence.score }}/100{% else %}—{% endif %}</strong><small>{{ dashboard_intelligence.headline }}</small></div>
+        <div class="future-signal accent"><span>{{ t('health_score') }}</span><strong>{% if dashboard_intelligence.score_available %}{{ dashboard_intelligence.score }}/100{% else %}—{% endif %}</strong><small>{% if dashboard_intelligence.headline == "Your recorded finances are showing strong momentum." %}{{ t('headline_strong_momentum') }}{% else %}{{ dashboard_intelligence.headline }}{% endif %}</small></div>
         <div class="future-signal"><span>{{ t('projected_spend') }}</span><strong>{% if dashboard_intelligence.forecast_available %}{{ currency_symbol }}{{ dashboard_intelligence.projected_expense|money }}{% else %}—{% endif %}</strong><small>{{ t('month_forecast') }}</small></div>
-        <div class="future-signal"><span>{{ t('projected_savings') }}</span><strong>{% if dashboard_intelligence.projected_savings is not none %}{{ currency_symbol }}{{ dashboard_intelligence.projected_savings|money }}{% else %}—{% endif %}</strong><small>{% if dashboard_intelligence.forecast_available %}At your current recorded pace{% else %}{{ t('not_enough') }}{% endif %}</small></div>
-        <div class="future-signal"><span>{{ t('risk_signal') }}</span><strong>{{ dashboard_intelligence.risks|length }}</strong><small>{% if dashboard_intelligence.risks %}Detected before month-end{% else %}No projected budget breach detected{% endif %}</small></div>
+        <div class="future-signal"><span>{{ t('projected_savings') }}</span><strong>{% if dashboard_intelligence.projected_savings is not none %}{{ currency_symbol }}{{ dashboard_intelligence.projected_savings|money }}{% else %}—{% endif %}</strong><small>{% if dashboard_intelligence.forecast_available %}{{ t('at_current_pace') }}{% else %}{{ t('not_enough') }}{% endif %}</small></div>
+        <div class="future-signal"><span>{{ t('risk_signal') }}</span><strong>{{ dashboard_intelligence.risks|length }}</strong><small>{% if dashboard_intelligence.risks %}{{ t('detected_before_month_end') }}{% else %}{{ t('no_budget_breach') }}{% endif %}</small></div>
       </div>
       <a class="future-open" href="/intelligence">{{ t('open_intelligence') }} →</a>
     </section>
@@ -46,28 +46,28 @@
     <section class="gamification-card">
         <div class="gamification-left">
             <div class="gamification-badge">LV {{ gamification.level }}</div>
-            <div><span class="eyebrow">FINANCIAL MOMENTUM</span><h2>Level {{ gamification.level }} · {{ gamification.xp }} XP</h2><p>{{ gamification.current_streak }} day streak · {{ gamification.best_streak }} best</p></div>
+            <div><span class="eyebrow">{{ t('financial_momentum') }}</span><h2>{{ t('level') }} {{ gamification.level }} · {{ gamification.xp }} XP</h2><p>{{ gamification.current_streak }} {{ t('day_streak') }} · {{ gamification.best_streak }} {{ t('best') }}</p></div>
         </div>
         <div class="xp-track"><div style="width: {{ [((gamification.xp % 100) or 0), 100]|min }}%"></div></div>
         <div class="gamification-badges">
-            {% if 'first-transaction' in gamification.badges %}<span title="First transaction">✦ First move</span>{% endif %}
-            {% if 'ten-transactions' in gamification.badges %}<span title="10 transactions">10× Consistent</span>{% endif %}
-            {% if 'budget-builder' in gamification.badges %}<span>◫ Budget builder</span>{% endif %}
-            {% if 'goal-setter' in gamification.badges %}<span>◎ Goal setter</span>{% endif %}
-            {% if 'goal-achiever' in gamification.badges %}<span>🏆 Goal achiever</span>{% endif %}
+            {% if 'first-transaction' in gamification.badges %}<span title="{{ t('first_transaction') }}">✦ {{ t('first_move') }}</span>{% endif %}
+            {% if 'ten-transactions' in gamification.badges %}<span title="10 {{ t('transactions') }}">10× {{ t('consistent') }}</span>{% endif %}
+            {% if 'budget-builder' in gamification.badges %}<span>◫ {{ t('budget_builder') }}</span>{% endif %}
+            {% if 'goal-setter' in gamification.badges %}<span>◎ {{ t('goal_setter') }}</span>{% endif %}
+            {% if 'goal-achiever' in gamification.badges %}<span>🏆 {{ t('goal_achiever') }}</span>{% endif %}
             {% if 'seven-day-streak' in gamification.badges %}<span>🔥 7-day streak</span>{% endif %}
         </div>
     </section>
 
     {% if alerts %}
     <section class="alert-center-card">
-        <div class="dashboard-panel-header"><div><div class="dashboard-panel-eyebrow">SMART ALERTS</div><h2>Things worth seeing</h2></div><span class="dashboard-period-pill">{{ alerts|length }} active</span></div>
+        <div class="dashboard-panel-header"><div><div class="dashboard-panel-eyebrow">{{ t('smart_alerts') }}</div><h2>{{ t('things_worth_seeing') }}</h2></div><span class="dashboard-period-pill">{{ alerts|length }} {{ t('active') }}</span></div>
         <div class="alert-center-list">
         {% for alert in alerts %}
             <div class="alert-center-item alert-{{ alert.alert_type }}">
                 <span class="alert-center-icon">{% if alert.alert_type == 'danger' %}!{% elif alert.alert_type == 'success' %}✓{% else %}◌{% endif %}</span>
                 <div><strong>{{ alert.title }}</strong><p>{{ alert.message }}</p></div>
-                {% if alert.link %}<a href="{{ alert.link }}">Open →</a>{% endif %}
+                {% if alert.link %}<a href="{{ alert.link }}">{{ t('open') }} →</a>{% endif %}
             </div>
         {% endfor %}
         </div>
@@ -309,169 +309,31 @@
 
     <!-- SIGORA INSIGHT -->
     <section class="dashboard-ai-card">
-
         <div class="dashboard-ai-glow"></div>
-
         <div class="dashboard-ai-header">
-
-            <div class="dashboard-ai-brand">
-
-                <div class="dashboard-ai-icon">
-                    ✦
-                </div>
-
-                <div>
-                    <span>
-                        SIGORA
-                    </span>
-
-                    <small>
-                        Financial overview
-                    </small>
-                </div>
-
-            </div>
-
-            <div class="dashboard-ai-live">
-                INSIGHT
-            </div>
-
+            <div class="dashboard-ai-brand"><div class="dashboard-ai-icon">✦</div><div><span>SIGORA</span><small>{{ t('financial_overview') }}</small></div></div>
+            <div class="dashboard-ai-live">{{ t('insight_label') }}</div>
         </div>
-
-
         <div class="dashboard-ai-content">
-
             {% if transaction_count == 0 %}
-
-                <h2>
-                    Your financial picture starts here.
-                </h2>
-
-                <p>
-                    Add a few transactions and Sigora will start
-                    turning your financial activity into useful
-                    patterns, spending signals and insights.
-                </p>
-
-                <div class="dashboard-ai-focus">
-
-                    <span>
-                        Recommended next step
-                    </span>
-
-                    <strong>
-                        Start tracking your transactions
-                    </strong>
-
-                </div>
-
-
+                <h2>{{ t('dash_ai_empty_title') }}</h2>
+                <p>{{ t('dash_ai_empty_body') }}</p>
+                <div class="dashboard-ai-focus"><span>{{ t('recommended_next_step') }}</span><strong>{{ t('start_tracking_transactions') }}</strong></div>
             {% elif balance < 0 %}
-
-                <h2>
-                    Your current spending is ahead of your income.
-                </h2>
-
-                <p>
-                    You've recorded
-                    {{ currency_symbol }}{{ "%.2f"|format(total_expense) }}
-                    in expenses against
-                    {{ currency_symbol }}{{ "%.2f"|format(total_income) }}
-                    in income.
-                    Review your spending categories and identify
-                    areas where you can cut unnecessary spending.
-                </p>
-
-                <div class="dashboard-ai-focus">
-
-                    <span>
-                        Focus area
-                    </span>
-
-                    <strong>
-                        Reduce spending
-                    </strong>
-
-                </div>
-
-
+                <h2>{{ t('dash_ai_negative_title') }}</h2>
+                <p>{{ t('dash_ai_negative_body').format(expense=currency_symbol ~ ('%.2f'|format(total_expense)), income=currency_symbol ~ ('%.2f'|format(total_income))) }}</p>
+                <div class="dashboard-ai-focus"><span>{{ t('focus_area') }}</span><strong>{{ t('reduce_spending') }}</strong></div>
             {% elif total_income > 0 and total_expense >= total_income * 0.8 %}
-
-                <h2>
-                    You're doing okay, but your spending deserves attention.
-                </h2>
-
-                <p>
-                    Around
-                    {{ "%.0f"|format(
-                        (total_expense / total_income) * 100
-                    ) }}%
-                    of your recorded income has already been spent.
-                    Keeping an eye on your biggest categories could
-                    help protect your remaining balance.
-                </p>
-
-                <div class="dashboard-ai-focus">
-
-                    <span>
-                        Focus area
-                    </span>
-
-                    <strong>
-                        Watch your spending
-                    </strong>
-
-                </div>
-
-
+                <h2>{{ t('dash_ai_high_spend_title') }}</h2>
+                <p>{{ t('dash_ai_high_spend_body').format(pct='%.0f'|format((total_expense / total_income) * 100)) }}</p>
+                <div class="dashboard-ai-focus"><span>{{ t('focus_area') }}</span><strong>{{ t('watch_spending') }}</strong></div>
             {% else %}
-
-                <h2>
-                    Your finances are currently in a healthy position.
-                </h2>
-
-                <p>
-                    You've recorded
-                    {{ currency_symbol }}{{ "%.2f"|format(total_income) }}
-                    in income and
-                    {{ currency_symbol }}{{ "%.2f"|format(total_expense) }}
-                    in expenses, leaving you with
-                    {{ currency_symbol }}{{ "%.2f"|format(balance) }}
-                    in recorded balance.
-                    Keep tracking consistently to make this picture
-                    even more useful.
-                </p>
-
-                <div class="dashboard-ai-focus">
-
-                    <span>
-                        Biggest expense category
-                    </span>
-
-                    <strong>
-
-                        {% if top_expense_category %}
-
-                            {{ top_expense_category }}
-                            ·
-                            {{ currency_symbol }}{{ "%.2f"|format(top_amount) }}
-
-                        {% else %}
-
-                            No expense category yet
-
-                        {% endif %}
-
-                    </strong>
-
-                </div>
-
+                <h2>{{ t('dash_ai_healthy_title') }}</h2>
+                <p>{{ t('dash_ai_healthy_body').format(income=currency_symbol ~ ('%.2f'|format(total_income)), expense=currency_symbol ~ ('%.2f'|format(total_expense)), balance=currency_symbol ~ ('%.2f'|format(balance))) }}</p>
+                <div class="dashboard-ai-focus"><span>{{ t('biggest_expense_category') }}</span><strong>{% if top_expense_category %}{{ top_expense_category }} · {{ currency_symbol }}{{ "%.2f"|format(top_amount) }}{% else %}{{ t('no_expense_category') }}{% endif %}</strong></div>
             {% endif %}
-
         </div>
-
     </section>
-
 
     <!-- LOWER GRID -->
     <section class="dashboard-lower-grid">

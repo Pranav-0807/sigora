@@ -1,49 +1,117 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="invest-hero"><div><span class="eyebrow">SIGORA INVEST</span><h1>Your money, beyond spending.</h1><p>Track investments, understand risk and connect your portfolio to your complete financial picture.</p></div><div class="invest-actions"><a class="secondary-button" href="/invest/profile">{% if profile %}Edit profile{% else %}Build risk profile{% endif %}</a>{% if profile or portfolio.holdings %}<form method="POST" action="/invest/ai"><button class="hero-button" type="submit">✦ AI portfolio insight</button></form>{% endif %}</div></div>
-<div class="invest-disclaimer"><strong>Important:</strong> Sigora provides educational analytics, portfolio tracking and risk information. It does not provide personalized buy/sell recommendations, target returns or guarantees.</div>
+<div class="invest-hero">
+  <div><span class="eyebrow">SIGORA INVEST</span><h1>{{ t('portfolio_intelligence') }}</h1><p>{{ t('invest_hero_sub') }}</p></div>
+  <div class="invest-actions">
+    <a class="secondary-button" href="/invest/profile">{% if profile %}{{ t('edit_profile') }}{% else %}{{ t('build_risk_profile') }}{% endif %}</a>
+    {% if portfolio.holdings %}<form method="POST" action="/invest/refresh-prices"><button class="secondary-button" type="submit">↻ {{ t('refresh_prices') }}</button></form>{% endif %}
+    {% if profile or portfolio.holdings %}<form method="POST" action="/invest/ai"><button class="hero-button" type="submit">✦ {{ t('ai_portfolio_insight') }}</button></form>{% endif %}
+  </div>
+</div>
+<div class="invest-disclaimer"><strong>{{ t('important') }}:</strong> {{ t('invest_disclaimer_full') }} {{ t('price_delayed') }}</div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
 
 {% if not profile %}
-<div class="profile-empty"><div><span class="eyebrow">START HERE</span><h2>Tell Sigora what kind of investor you are.</h2><p>Answer a short risk-and-horizon questionnaire to unlock model allocation education and better portfolio warnings.</p></div><a class="hero-button" href="/invest/profile">Create investor profile →</a></div>
+<div class="profile-empty"><div><span class="eyebrow">{{ t('start_here') }}</span><h2>{{ t('investor_kind_title') }}</h2><p>{{ t('investor_kind_sub') }}</p></div><a class="hero-button" href="/invest/profile">{{ t('create_investor_profile') }} →</a></div>
 {% else %}
-<div class="profile-strip"><div><span>Your profile</span><strong>{{ profile.profile }}</strong></div><div><span>Horizon</span><strong>{{ profile.horizon_years }}+ yrs</strong></div><div><span>Emergency cover</span><strong>{{ '%.1f'|format(profile.emergency_months) }} mo</strong></div><div><span>Monthly plan</span><strong>{{ currency_symbol }}{{ profile.monthly_investment|money }}</strong></div></div>
+<div class="profile-strip"><div><span>{{ t('your_profile') }}</span><strong>{{ profile.profile }}</strong></div><div><span>{{ t('horizon') }}</span><strong>{{ profile.horizon_years }}+ {{ t('years_short') }}</strong></div><div><span>{{ t('emergency_cover') }}</span><strong>{{ '%.1f'|format(profile.emergency_months) }} {{ t('months_short') }}</strong></div><div><span>{{ t('monthly_plan') }}</span><strong>{{ currency_symbol }}{{ profile.monthly_investment|money }}</strong></div></div>
 {% endif %}
 
-<div class="invest-stat-grid">
- <div class="invest-stat"><span>Invested cost</span><strong>{{ currency_symbol }}{{ portfolio.invested|money }}</strong></div>
- <div class="invest-stat"><span>Current tracked value</span><strong>{{ currency_symbol }}{{ portfolio.value|money }}</strong></div>
- <div class="invest-stat"><span>Gain / loss</span><strong class="{{ 'positive' if portfolio.gain >= 0 else 'negative' }}">{{ '+' if portfolio.gain >= 0 else '' }}{{ currency_symbol }}{{ portfolio.gain|money }}</strong></div>
- <div class="invest-stat"><span>Tracked return</span><strong class="{{ 'positive' if portfolio.return_pct >= 0 else 'negative' }}">{{ '%+.2f'|format(portfolio.return_pct) }}%</strong></div>
+<div class="invest-stat-grid invest-stat-grid-v2">
+ <div class="invest-stat featured"><span>{{ t('current_value') }}</span><strong>{{ currency_symbol }}{{ portfolio.value|money }}</strong><small>{{ portfolio.holdings|length }} {{ t('holdings_count') }}</small></div>
+ <div class="invest-stat"><span>{{ t('invested_cost') }}</span><strong>{{ currency_symbol }}{{ portfolio.invested|money }}</strong><small>{{ t('cost_basis') }}</small></div>
+ <div class="invest-stat"><span>{{ t('gain_loss') }}</span><strong class="{{ 'positive' if portfolio.gain >= 0 else 'negative' }}">{{ '+' if portfolio.gain >= 0 else '' }}{{ currency_symbol }}{{ portfolio.gain|money }}</strong><small>{{ '%+.2f'|format(portfolio.return_pct) }}%</small></div>
+ <div class="invest-stat"><span>{{ t('today_change') }}</span><strong class="{{ 'positive' if portfolio.today_change >= 0 else 'negative' }}">{{ '+' if portfolio.today_change >= 0 else '' }}{{ currency_symbol }}{{ portfolio.today_change|money }}</strong><small>{{ '%+.2f'|format(portfolio.today_pct) }}%</small></div>
 </div>
 
-{% if cashflow.messages or portfolio.warnings %}<section class="investment-section"><div class="section-heading"><span class="eyebrow">ATTENTION</span><h2>Precautionary signals</h2></div><div class="warning-stack">{% for w in cashflow.messages %}<div class="warning-card">⚠ {{ w }}</div>{% endfor %}{% for w in portfolio.warnings %}<div class="warning-card">⚠ {{ w }}</div>{% endfor %}</div></section>{% endif %}
+{% if portfolio.holdings %}
+<section class="investment-section intelligence-grid-v2">
+  <article class="intelligence-card-v2">
+    <div class="section-heading compact-heading"><span class="eyebrow">{{ t('sigora_signal') }}</span><h2>{{ t('portfolio_health') }}{% if health.score is not none %} · {{ health.score }}/100{% endif %}</h2><p>{{ t('portfolio_health_sub') }}</p></div>
+    <div class="health-meter"><i style="width:{{ health.score or 0 }}%"></i></div>
+    <strong class="health-label">{{ t(health.label_key) }}</strong>
+    <div class="signal-list">{% for signal in health.signal_keys %}<div>• {{ t(signal) }}</div>{% endfor %}</div>
+    <small class="muted-copy">{{ t('portfolio_health_not_advice') }}</small>
+  </article>
 
-{% if profile and allocation %}
-<section class="investment-section"><div class="section-heading"><span class="eyebrow">EDUCATIONAL MODEL</span><h2>{{ profile.profile }} allocation example</h2><p>This is a generic illustration for learning — not a recommendation for your money.</p></div><div class="allocation-grid">{% for label,pct in allocation.items() %}<div class="allocation-card"><div class="allocation-top"><strong>{{ label }}</strong><span>{{ pct }}%</span></div><div class="allocation-bar"><i style="width:{{ pct }}%"></i></div></div>{% endfor %}</div></section>
+  <article class="intelligence-card-v2">
+    <div class="section-heading compact-heading"><span class="eyebrow">{{ t('portfolio_life_label') }}</span><h2>{{ t('portfolio_to_life') }}</h2><p>{{ t('portfolio_to_life_sub') }}</p></div>
+    <div class="life-facts">
+      {% if life.invested_share is not none %}<div><strong>{{ '%.1f'|format(life.invested_share) }}%</strong><span>{{ t('of_net_worth_invested') }}</span></div>{% endif %}
+      <div><strong>{% if life.largest %}{{ life.largest.name }} · {{ '%.1f'|format(life.largest_pct) }}%{% else %}—{% endif %}</strong><span>{{ t('largest_holding') }}</span></div>
+      <div><strong>{{ '%.1f'|format(life.emergency_months) }} {{ t('months_short') }}</strong><span>{{ t('emergency_cover') }}</span></div>
+      <div><strong class="negative">−{{ currency_symbol }}{{ life.down20|money }}</strong><span>{{ t('downside_20') }} · {{ t('net_worth_change') }}</span></div>
+    </div>
+  </article>
+</section>
 {% endif %}
 
-<section class="investment-section"><div class="section-heading"><span class="eyebrow">PORTFOLIO TRACKER</span><h2>Your holdings</h2><p>Enter what you own and update current prices whenever you want. Live brokerage syncing can be added later through a supported provider.</p></div>
-<div class="investment-form-card compact"><form method="POST" action="/invest/holding/add"><div class="holding-form-grid"><input name="name" placeholder="Investment name" required><input name="symbol" placeholder="Symbol (optional)"><select name="asset_type"><option>Stock</option><option>Index fund / ETF</option><option>Mutual fund</option><option>Fixed income</option><option>Gold</option><option>Cash / liquid</option><option>Other</option></select><input name="sector" placeholder="Sector (optional)"><input name="quantity" type="number" min="0" step="0.000001" placeholder="Quantity" required><input name="average_cost" type="number" min="0" step="0.01" placeholder="Average cost" required><input name="current_price" type="number" min="0" step="0.01" placeholder="Current price" required><input name="notes" placeholder="Notes (optional)"></div><button class="hero-button" type="submit">+ Add holding</button></form></div>
-{% if portfolio.holdings %}<div class="holdings-table-wrap"><table class="holdings-table"><thead><tr><th>Holding</th><th>Type</th><th>Qty</th><th>Avg cost</th><th>Current</th><th>Value</th><th>Return</th><th></th></tr></thead><tbody>{% for h in portfolio.holdings %}<tr><td><strong>{{ h.name }}</strong><small>{{ h.symbol }}{% if h.sector %} · {{ h.sector }}{% endif %}</small></td><td>{{ h.asset_type }}</td><td>{{ '%.4f'|format(h.quantity) }}</td><td>{{ currency_symbol }}{{ h.average_cost|money }}</td><td><form class="price-inline" method="POST" action="/invest/holding/{{ h.id }}/price"><input name="current_price" type="number" step="0.01" min="0" value="{{ '%.2f'|format(h.current_price) }}"><button>Update</button></form></td><td>{{ currency_symbol }}{{ h.value|money }}</td><td class="{{ 'positive' if h.return_pct >= 0 else 'negative' }}">{{ '%+.2f'|format(h.return_pct) }}%</td><td><form method="POST" action="/invest/holding/{{ h.id }}/delete" onsubmit="return confirm('Remove this holding?')"><button class="icon-danger">×</button></form></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-investments">No holdings yet. Add your first investment above.</div>{% endif %}
+{% if goal_connections or portfolio.holdings %}
+<section class="investment-section">
+  <div class="section-heading"><span class="eyebrow">{{ t('goals_investments_label') }}</span><h2>{{ t('goal_connection') }}</h2><p>{{ t('goal_connection_sub') }}</p></div>
+  {% if goal_connections %}<div class="goal-connect-grid">
+    {% for g in goal_connections %}<article class="goal-connect-card">
+      <div class="goal-connect-top"><strong>{{ g.name }}</strong><span>{{ '%.0f'|format(g.portfolio_pct) }}%</span></div>
+      <div class="goal-progress"><i style="width:{{ [g.portfolio_pct,100]|min }}%"></i></div>
+      <div class="goal-connect-facts"><span>{{ t('goal_saved_amount') }}: {{ currency_symbol }}{{ g.saved_base|money }}</span><span>{{ t('goal_target') }}: {{ currency_symbol }}{{ g.target_base|money }}</span></div>
+      <small>{{ t('portfolio_reference') }}: {{ t('portfolio_equals_goal').format(pct='%.0f'|format(g.portfolio_pct)) }} · {{ t('not_guaranteed') }}</small>
+    </article>{% endfor %}
+  </div>{% else %}<div class="empty-investments">{{ t('no_goals_connect') }} <a href="/goals">{{ t('goals_link') }} →</a></div>{% endif %}
+</section>
+{% endif %}
+
+<section class="investment-section holdings-v2">
+  <div class="section-heading holdings-heading-v2"><div><span class="eyebrow">{{ t('portfolio_tracker_label') }}</span><h2>{{ t('your_holdings') }}</h2><p>{{ t('market_price_help') }}</p></div>{% if portfolio.holdings %}<span class="holding-count-pill">{{ portfolio.holdings|length }} {{ t('holdings_count') }}</span>{% endif %}</div>
+
+  <details class="add-holding-details" {% if not portfolio.holdings %}open{% endif %}><summary>+ {{ t('add_holding') }}</summary>
+    <div class="investment-form-card compact"><form method="POST" action="/invest/holding/add"><div class="holding-form-grid">
+      <input name="name" placeholder="{{ t('investment_name') }}" required>
+      <input name="symbol" placeholder="{{ t('symbol_optional') }}">
+      <select name="asset_type"><option value="Stock">{{ t('asset_stock') }}</option><option value="Index fund / ETF">{{ t('asset_index_etf') }}</option><option value="Mutual fund">{{ t('asset_mutual_fund') }}</option><option value="Fixed income">{{ t('asset_fixed_income') }}</option><option value="Gold">{{ t('asset_gold') }}</option><option value="Cash / liquid">{{ t('asset_cash_liquid') }}</option><option value="Other">{{ t('asset_other') }}</option></select>
+      <input name="sector" placeholder="{{ t('sector_optional') }}">
+      <input name="quantity" type="number" min="0" step="0.000001" placeholder="{{ t('quantity') }}" required>
+      <input name="average_cost" type="number" min="0" step="0.01" placeholder="{{ t('average_cost') }}" required>
+      <input name="current_price" type="number" min="0" step="0.01" placeholder="{{ t('manual_fallback_price') }}">
+      <input name="notes" placeholder="{{ t('notes_optional') }}">
+    </div><button class="hero-button" type="submit">+ {{ t('add_holding') }}</button></form></div>
+  </details>
+
+  {% if portfolio.holdings %}
+  <div class="holdings-toolbar"><input id="holdingSearch" placeholder="{{ t('search_holdings') }}"><select id="holdingSort"><option value="value">{{ t('current_value_sort') }}</option><option value="return">{{ t('return_sort') }}</option><option value="name">{{ t('name_sort') }}</option></select></div>
+  <div id="holdingsList" class="holdings-compact-list">
+    {% for h in portfolio.holdings %}<article class="holding-row-v2 {% if loop.index > 5 %}holding-extra{% endif %}" data-name="{{ h.name|lower }} {{ h.symbol|lower }}" data-value="{{ h.value }}" data-return="{{ h.return_pct }}">
+      <div class="holding-identity"><strong>{{ h.name }}</strong><small>{{ h.symbol or h.asset_type }}{% if h.sector and h.sector != 'Unspecified' %} · {{ h.sector }}{% endif %}</small></div>
+      <div class="holding-metric"><span>{{ t('avg_bought_price') }}</span><strong>{{ currency_symbol }}{{ h.average_cost|money }}</strong></div>
+      <div class="holding-metric"><span>{{ t('latest_price') }}</span><strong>{{ currency_symbol }}{{ h.current_price|money }}</strong>{% if h.market_change_pct is not none %}<small class="{{ 'positive' if h.market_change_pct >= 0 else 'negative' }}">{{ '%+.2f'|format(h.market_change_pct) }}%</small>{% endif %}</div>
+      <div class="holding-metric primary"><span>{{ t('current_value') }}</span><strong>{{ currency_symbol }}{{ h.value|money }}</strong><small class="{{ 'positive' if h.return_pct >= 0 else 'negative' }}">{{ '%+.2f'|format(h.return_pct) }}%</small></div>
+      <details class="holding-more"><summary>•••</summary><div class="holding-popover"><div>{{ t('quantity') }} <strong>{{ '%.4f'|format(h.quantity) }}</strong></div><div>{{ t('cost_basis') }} <strong>{{ currency_symbol }}{{ h.invested|money }}</strong></div><div>{{ t('gain_loss') }} <strong class="{{ 'positive' if h.gain>=0 else 'negative' }}">{{ currency_symbol }}{{ h.gain|money }}</strong></div>{% if h.market_price_updated_at %}<div>{{ t('last_price_sync') }} <strong>{{ h.market_price_updated_at[:16] }}</strong></div><div>{{ t('price_source') }} <strong>Yahoo Finance · {{ t('market_data_may_be_delayed') }}</strong></div>{% endif %}{% if h.symbol %}<a href="/invest/market/{{ h.symbol }}">{{ t('market_research') }} →</a>{% endif %}<form method="POST" action="/invest/holding/{{ h.id }}/delete" onsubmit="return confirm('{{ t('remove_holding') }}')"><button class="icon-danger">× {{ t('remove') }}</button></form></div></details>
+    </article>{% endfor %}
+  </div>
+  {% if portfolio.holdings|length > 5 %}<button id="toggleHoldings" class="secondary-button holdings-toggle" type="button">{{ t('view_all_holdings') }} ({{ portfolio.holdings|length }}) →</button>{% endif %}
+  {% else %}<div class="empty-investments">{{ t('no_holdings') }}</div>{% endif %}
 </section>
 
-{% if portfolio.allocations %}<section class="investment-section"><div class="section-heading"><span class="eyebrow">DIVERSIFICATION</span><h2>What you actually own</h2></div><div class="allocation-grid">{% for label,pct in portfolio.allocations.items() %}<div class="allocation-card"><div class="allocation-top"><strong>{{ label }}</strong><span>{{ '%.1f'|format(pct) }}%</span></div><div class="allocation-bar"><i style="width:{{ pct }}%"></i></div></div>{% endfor %}</div></section>{% endif %}
+{% if cashflow_messages or portfolio_warning_texts %}<section class="investment-section"><div class="section-heading"><span class="eyebrow">{{ t('attention') }}</span><h2>{{ t('precautionary_signals') }}</h2></div><div class="warning-stack">{% for w in cashflow_messages %}<div class="warning-card">⚠ {{ w }}</div>{% endfor %}{% for w in portfolio_warning_texts %}<div class="warning-card">⚠ {{ w }}</div>{% endfor %}</div></section>{% endif %}
 
-<section class="investment-section"><div class="section-heading"><span class="eyebrow">INVESTMENT EXPLORER</span><h2>Learn before you choose</h2><p>These are asset-class examples, not personalized picks.</p></div><div class="explorer-grid">{% for x in explorer %}<article class="explorer-card"><div class="explorer-title"><h3>{{ x.category }}</h3><span>{{ x.risk }}</span></div><strong>{{ x.examples }}</strong><p>{{ x.role }}</p><small>Typical learning horizon: {{ x.horizon }}</small></article>{% endfor %}</div></section>
+{% if portfolio.allocations %}<section class="investment-section"><div class="section-heading"><span class="eyebrow">{{ t('diversification') }}</span><h2>{{ t('what_you_own') }}</h2></div><div class="allocation-grid">{% for label,pct in portfolio.allocations.items() %}<div class="allocation-card"><div class="allocation-top"><strong>{{ label }}</strong><span>{{ '%.1f'|format(pct) }}%</span></div><div class="allocation-bar"><i style="width:{{ pct }}%"></i></div></div>{% endfor %}</div></section>{% endif %}
 
-<section class="investment-section"><div class="section-heading"><span class="eyebrow">PROJECTION LAB</span><h2>Explore long-term scenarios</h2><p>Change the assumptions yourself. Projections are mathematical illustrations, not forecasts or promised returns.</p></div><div class="investment-form-card compact"><div class="holding-form-grid"><label><span>Starting amount</span><input id="projStart" type="number" min="0" step="100" value="{{ '%.0f'|format(portfolio.value) }}"></label><label><span>Monthly contribution</span><input id="projMonthly" type="number" min="0" step="100" value="{{ '%.0f'|format(profile.monthly_investment if profile else 0) }}"></label><label><span>Years</span><input id="projYears" type="number" min="1" max="50" value="10"></label><label><span>Assumed annual return %</span><input id="projRate" type="number" min="-50" max="50" step="0.1" value="8"></label></div><button class="secondary-button" type="button" onclick="calculateInvestmentProjection()">Calculate scenario</button><div id="projectionResult" class="projection-result">Enter assumptions and calculate a scenario.</div></div></section>
+<details class="scenario-details investment-section">
+  <summary><span><span class="eyebrow">{{ t('what_if') }}</span><strong>{{ t('scenario_lab') }}</strong><small>{{ t('scenario_lab_sub') }}</small></span><b>{{ t('explore_scenarios') }} →</b></summary>
+  <div class="scenario-body"><div class="holding-form-grid scenario-grid"><label><span>{{ t('starting_amount') }}</span><input id="projStart" type="number" min="0" step="100" value="{{ '%.0f'|format(portfolio.value) }}"></label><label><span>{{ t('monthly_contribution') }}</span><input id="projMonthly" type="number" min="0" step="100" value="{{ '%.0f'|format(profile.monthly_investment if profile else 0) }}"></label><label><span>{{ t('years') }}</span><input id="projYears" type="number" min="1" max="50" value="10"></label><label><span>{{ t('assumed_annual_return') }}</span><input id="projRate" type="number" min="-50" max="50" step="0.1" value="8"></label></div><button class="secondary-button" type="button" onclick="calculateInvestmentProjection()">{{ t('calculate_long_scenario') }}</button><div id="projectionResult" class="projection-result">{{ t('scenario_enter_assumptions') }}</div>
+  <hr><div class="downside-lab"><label><span>{{ t('portfolio_drop') }}</span><input id="portfolioShock" type="number" min="-100" max="100" step="1" value="-20"></label><button class="secondary-button" type="button" onclick="calculatePortfolioShock()">{{ t('apply_scenario') }}</button><div id="shockResult" class="projection-result"></div></div></div>
+</details>
 
-<section class="investment-section"><div class="section-heading"><span class="eyebrow">WATCHLIST</span><h2>Research queue</h2><p>Type a company, ETF, fund or index name. Sigora will resolve its market ticker automatically when market data is available.</p></div><form class="watchlist-form watchlist-search" method="POST" action="/invest/watchlist/add"><input name="name" placeholder="Try Reliance, Apple, Microsoft, Nifty 50..." required><input name="note" placeholder="Optional research note"><button class="secondary-button">Find & add</button></form><div class="watchlist-grid">{% for x in watchlist %}<div class="watch-card market-watch-card"><a class="watch-main" href="/invest/market/{{ x.symbol }}"><div><strong>{{ x.name }}</strong><small>{{ x.symbol }} · {{ x.asset_type }}</small>{% if x.market and x.market.price is not none %}<div class="watch-price"><b>{{ x.market.currency }} {{ '%.2f'|format(x.market.price) }}</b><span class="{{ 'positive' if (x.market.change_pct or 0)>=0 else 'negative' }}">{{ '%+.2f'|format(x.market.change_pct or 0) }}% today</span></div>{% else %}<p>Market data unavailable right now</p>{% endif %}{% if x.note %}<p>{{ x.note }}</p>{% endif %}</div><span class="watch-open">View chart →</span></a><form method="POST" action="/invest/watchlist/{{ x.id }}/delete"><button class="icon-danger" title="Remove">×</button></form></div>{% else %}<p class="muted-copy">Your watchlist is empty.</p>{% endfor %}</div></section>
+{% if profile and allocation %}<section class="investment-section"><div class="section-heading"><span class="eyebrow">{{ t('educational_model') }}</span><h2>{{ t('allocation_example').format(profile=profile.profile) }}</h2><p>{{ t('generic_learning_only') }}</p></div><div class="allocation-grid">{% for label,pct in allocation.items() %}<div class="allocation-card"><div class="allocation-top"><strong>{{ label }}</strong><span>{{ pct }}%</span></div><div class="allocation-bar"><i style="width:{{ pct }}%"></i></div></div>{% endfor %}</div></section>{% endif %}
+
+<section class="investment-section"><div class="section-heading"><span class="eyebrow">{{ t('investment_explorer') }}</span><h2>{{ t('learn_before_choose') }}</h2><p>{{ t('asset_examples_not_picks') }}</p></div><div class="explorer-grid">{% for x in explorer %}<article class="explorer-card"><div class="explorer-title"><h3>{{ x.category }}</h3><span>{{ x.risk }}</span></div><strong>{{ x.examples }}</strong><p>{{ x.role }}</p><small>{{ t('typical_learning_horizon') }}: {{ x.horizon }}</small></article>{% endfor %}</div></section>
+
+<section class="investment-section"><div class="section-heading"><span class="eyebrow">{{ t('watchlist') }}</span><h2>{{ t('research_queue') }}</h2><p>{{ t('watchlist_sub') }}</p></div><form class="watchlist-form watchlist-search" method="POST" action="/invest/watchlist/add"><input name="name" placeholder="{{ t('watchlist_try') }}" required><input name="note" placeholder="{{ t('optional_research_note') }}"><button class="secondary-button">{{ t('find_add') }}</button></form><div class="watchlist-grid">{% for x in watchlist %}<div class="watch-card market-watch-card"><a class="watch-main" href="/invest/market/{{ x.symbol }}"><div><strong>{{ x.name }}</strong><small>{{ x.symbol }} · {{ x.asset_type }}</small>{% if x.market and x.market.price is not none %}<div class="watch-price"><b>{{ x.market.currency }} {{ '%.2f'|format(x.market.price) }}</b><span class="{{ 'positive' if (x.market.change_pct or 0)>=0 else 'negative' }}">{{ '%+.2f'|format(x.market.change_pct or 0) }}% {{ t('today') }}</span></div>{% else %}<p>{{ t('market_unavailable_now') }}</p>{% endif %}{% if x.note %}<p>{{ x.note }}</p>{% endif %}</div><span class="watch-open">{{ t('view_chart') }} →</span></a><form method="POST" action="/invest/watchlist/{{ x.id }}/delete"><button class="icon-danger" title="{{ t('remove') }}">×</button></form></div>{% else %}<p class="muted-copy">{{ t('watchlist_empty') }}</p>{% endfor %}</div></section>
 
 <script>
-function calculateInvestmentProjection(){
- const start=Number(document.getElementById('projStart').value||0), monthly=Number(document.getElementById('projMonthly').value||0), years=Number(document.getElementById('projYears').value||0), annual=Number(document.getElementById('projRate').value||0)/100;
- const months=Math.max(0,Math.round(years*12)), r=annual/12; let value=start;
- for(let i=0;i<months;i++){ value=value*(1+r)+monthly; }
- const contributed=start+(monthly*months), growth=value-contributed; const sym={{ currency_symbol|tojson }};
- document.getElementById('projectionResult').innerHTML='<strong>'+sym+value.toLocaleString(undefined,{maximumFractionDigits:0})+'</strong><span>Illustrative ending value</span><small>Total contributions: '+sym+contributed.toLocaleString(undefined,{maximumFractionDigits:0})+' · Illustrative growth: '+sym+growth.toLocaleString(undefined,{maximumFractionDigits:0})+'. Actual returns can be negative and will vary.</small>';
-}
+const money=n=>new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(n);
+function calculateInvestmentProjection(){const start=Number(document.getElementById('projStart').value||0),monthly=Number(document.getElementById('projMonthly').value||0),years=Number(document.getElementById('projYears').value||0),annual=Number(document.getElementById('projRate').value||0)/100;const months=Math.max(0,Math.round(years*12)),r=annual/12;let value=start;for(let i=0;i<months;i++){value=value*(1+r)+monthly;}document.getElementById('projectionResult').textContent='{{ t("illustrative_ending_value") }}: {{ currency_symbol }}'+money(value);}
+function calculatePortfolioShock(){const pct=Number(document.getElementById('portfolioShock').value||0)/100,portfolio={{ portfolio.value|tojson }},nw={{ life.net_worth|tojson }};const pv=portfolio*(1+pct),newNw=nw+(pv-portfolio);document.getElementById('shockResult').innerHTML='<strong>{{ t("estimated_portfolio") }}: {{ currency_symbol }}'+money(pv)+'</strong><br>{{ t("estimated_net_worth") }}: {{ currency_symbol }}'+money(newNw);}
+(function(){const btn=document.getElementById('toggleHoldings'),rows=[...document.querySelectorAll('.holding-row-v2')],search=document.getElementById('holdingSearch'),sort=document.getElementById('holdingSort'),list=document.getElementById('holdingsList');let expanded=false;function apply(){const q=(search?.value||'').toLowerCase();rows.forEach((r,i)=>{const match=!q||r.dataset.name.includes(q);r.style.display=match&&(expanded||q||i<5)?'':'none';});}if(btn)btn.addEventListener('click',()=>{expanded=!expanded;btn.textContent=expanded?'{{ t("hide_all_holdings") }}':'{{ t("view_all_holdings") }} ({{ portfolio.holdings|length }}) →';apply();});if(search)search.addEventListener('input',apply);if(sort)sort.addEventListener('change',()=>{const key=sort.value;rows.sort((a,b)=>key==='name'?a.dataset.name.localeCompare(b.dataset.name):Number(b.dataset[key])-Number(a.dataset[key])).forEach(r=>list.appendChild(r));apply();});apply();})();
 </script>
 {% endblock %}

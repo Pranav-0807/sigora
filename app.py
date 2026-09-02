@@ -6,12 +6,14 @@ from ai_insights import(get_ai_insights,
                         get_investment_ai_insight,
                     )
 import os
+import math
 from flask import Flask, render_template, redirect, request, session, flash, send_file, jsonify
 import csv
 import hmac
 import hashlib
 import requests
-from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
 from import_engine import read_statement, normalize_rows, infer_statement_balance
 from currency_engine import convert_transaction, convert_amount
 from financial_intelligence import build_intelligence, simulate_purchase
@@ -63,7 +65,7 @@ from database import (
 
 from investment_features import (
     ensure_investment_schema, get_profile, save_profile, model_allocation,
-    add_investment, update_investment_price, delete_investment, portfolio_summary,
+    add_investment, update_investment_price, delete_investment, portfolio_summary, portfolio_health,
     add_watchlist, delete_watchlist, get_watchlist, financial_investment_context, EXPLORER
 )
 
@@ -286,6 +288,85 @@ for _lang, _items in _REPAIR_I18N.items():
     SIGORA_PHRASE_TRANSLATIONS.setdefault(_lang, {})
     SIGORA_TRANSLATIONS[_lang].update(_items)
     SIGORA_PHRASE_TRANSLATIONS[_lang].update(_items)
+
+_INVEST_V2_I18N = {
+"en": {
+"portfolio_intelligence":"Portfolio Intelligence","current_value":"Current value","today_change":"Today's change","tracked_return":"Tracked return","portfolio_health":"Portfolio Health","portfolio_health_sub":"Explainable signals from your tracked holdings and financial context.","your_holdings":"Your holdings","top_holdings":"Top holdings","view_all_holdings":"View all holdings","hide_all_holdings":"Show fewer holdings","search_holdings":"Search holdings","sort_by":"Sort by","current_value_sort":"Current value","return_sort":"Return","name_sort":"Name","avg_bought_price":"Avg bought price","latest_price":"Latest price","auto_market_price":"Auto market price","manual_fallback_price":"Current price (only if market data is unavailable)","market_price_help":"SIGORA refreshes supported market prices automatically. Bought price stays as your recorded cost basis.","price_delayed":"Market prices can be delayed or temporarily unavailable.","last_price_sync":"Last market sync","goal_connection":"Goal Connection","goal_connection_sub":"See how your tracked portfolio compares with the goals you are building toward — without treating market value as guaranteed goal funding.","portfolio_equals_goal":"Portfolio equals {pct}% of this goal target","no_goals_connect":"Create a goal to connect your investments to something you are building toward.","portfolio_to_life":"Portfolio → Life","portfolio_to_life_sub":"See what your investments mean for your complete financial position.","of_net_worth_invested":"of your current net worth is represented by tracked investments","largest_holding":"Largest holding","emergency_cover":"Emergency cover","months_short":"months","downside_20":"If the portfolio fell 20%","net_worth_change":"estimated net-worth change","scenario_lab":"Scenario Lab","scenario_lab_sub":"Explore mathematical scenarios — not forecasts or promised returns.","explore_scenarios":"Explore scenarios","portfolio_drop":"Portfolio change %","estimated_portfolio":"Estimated portfolio value","estimated_net_worth":"Estimated net worth","apply_scenario":"Calculate scenario","holdings_count":"holdings","refresh_prices":"Refresh market prices","prices_refreshed":"Market prices refreshed where available.","price_refresh_partial":"Some market prices could not be refreshed right now.","add_holding":"Add holding","investment_name":"Investment name","symbol_optional":"Symbol (optional)","quantity":"Quantity","average_cost":"Average cost / bought price","notes_optional":"Notes (optional)","portfolio_value":"Portfolio value","gain_loss":"Gain / loss","market_unavailable":"Market unavailable","cost_basis":"Cost basis","portfolio_share":"Portfolio share","remove_holding":"Remove this holding?","no_holdings":"No holdings yet. Add your first investment above.","goal_saved_amount":"Goal savings recorded","goal_target":"Target","portfolio_reference":"Portfolio reference","not_guaranteed":"Not guaranteed funding","portfolio_health_not_advice":"This score is educational and based only on recorded data; it is not investment advice.","price_source":"Price source","market_data_may_be_delayed":"market data may be delayed"
+},
+"ta": {
+"portfolio_intelligence":"போர்ட்ஃபோலியோ நுண்ணறிவு","current_value":"தற்போதைய மதிப்பு","today_change":"இன்றைய மாற்றம்","tracked_return":"பதிவான வருமான விகிதம்","portfolio_health":"போர்ட்ஃபோலியோ ஆரோக்கியம்","portfolio_health_sub":"உங்கள் பதிவு செய்யப்பட்ட முதலீடுகள் மற்றும் நிதிச் சூழலை அடிப்படையாகக் கொண்ட விளக்கமான சிக்னல்கள்.","your_holdings":"உங்கள் முதலீடுகள்","top_holdings":"முக்கிய முதலீடுகள்","view_all_holdings":"அனைத்து முதலீடுகளையும் பார்","hide_all_holdings":"குறைவாக காட்டு","search_holdings":"முதலீடுகளைத் தேடு","sort_by":"வரிசைப்படுத்து","current_value_sort":"தற்போதைய மதிப்பு","return_sort":"வருமான விகிதம்","name_sort":"பெயர்","avg_bought_price":"சராசரி வாங்கிய விலை","latest_price":"சமீபத்திய விலை","auto_market_price":"தானியங்கி சந்தை விலை","manual_fallback_price":"சந்தைத் தரவு இல்லாதபோது மட்டும் தற்போதைய விலை","market_price_help":"ஆதரிக்கப்படும் சந்தை விலைகளை SIGORA தானாகப் புதுப்பிக்கும். வாங்கிய விலை உங்கள் பதிவு செய்யப்பட்ட செலவுத் தளமாக மாறாமல் இருக்கும்.","price_delayed":"சந்தை விலைகள் தாமதமாகவோ தற்காலிகமாக கிடைக்காமலோ இருக்கலாம்.","last_price_sync":"கடைசி சந்தை ஒத்திசைவு","goal_connection":"இலக்கு இணைப்பு","goal_connection_sub":"சந்தை மதிப்பை உறுதியான இலக்கு நிதியாகக் கருதாமல், உங்கள் போர்ட்ஃபோலியோ உங்கள் இலக்குகளுடன் எப்படி ஒப்பிடப்படுகிறது என்பதைப் பாருங்கள்.","portfolio_equals_goal":"இந்த இலக்கு தொகையின் {pct}%க்கு போர்ட்ஃபோலியோ சமம்","no_goals_connect":"உங்கள் முதலீடுகளை ஒரு நோக்கத்துடன் இணைக்க இலக்கை உருவாக்குங்கள்.","portfolio_to_life":"போர்ட்ஃபோலியோ → வாழ்க்கை","portfolio_to_life_sub":"உங்கள் முதலீடுகள் உங்கள் முழு நிதிநிலைக்கு என்ன அர்த்தம் என்பதைப் பாருங்கள்.","of_net_worth_invested":"உங்கள் தற்போதைய நிகர சொத்து மதிப்பில் பதிவு செய்யப்பட்ட முதலீடுகள் குறிக்கும் பகுதி","largest_holding":"மிகப்பெரிய முதலீடு","emergency_cover":"அவசர நிதி பாதுகாப்பு","months_short":"மாதங்கள்","downside_20":"போர்ட்ஃபோலியோ 20% குறைந்தால்","net_worth_change":"மதிப்பிடப்பட்ட நிகர சொத்து மாற்றம்","scenario_lab":"சூழல் ஆய்வகம்","scenario_lab_sub":"கணித சூழல்களைப் பாருங்கள் — இது கணிப்பு அல்லது உறுதியான வருமான வாக்குறுதி அல்ல.","explore_scenarios":"சூழல்களை ஆராயுங்கள்","portfolio_drop":"போர்ட்ஃபோலியோ மாற்றம் %","estimated_portfolio":"மதிப்பிடப்பட்ட போர்ட்ஃபோலியோ மதிப்பு","estimated_net_worth":"மதிப்பிடப்பட்ட நிகர சொத்து மதிப்பு","apply_scenario":"சூழலைக் கணக்கிடு","holdings_count":"முதலீடுகள்","refresh_prices":"சந்தை விலைகளைப் புதுப்பி","prices_refreshed":"கிடைத்த சந்தை விலைகள் புதுப்பிக்கப்பட்டன.","price_refresh_partial":"சில சந்தை விலைகளை இப்போது புதுப்பிக்க முடியவில்லை.","add_holding":"முதலீட்டைச் சேர்","investment_name":"முதலீட்டு பெயர்","symbol_optional":"சின்னம் (விருப்பம்)","quantity":"அளவு","average_cost":"சராசரி வாங்கிய விலை","notes_optional":"குறிப்புகள் (விருப்பம்)","portfolio_value":"போர்ட்ஃபோலியோ மதிப்பு","gain_loss":"லாபம் / இழப்பு","market_unavailable":"சந்தைத் தரவு இல்லை","cost_basis":"செலவுத் தளம்","portfolio_share":"போர்ட்ஃபோலியோ பங்கு","remove_holding":"இந்த முதலீட்டை நீக்கவா?","no_holdings":"இன்னும் முதலீடுகள் இல்லை. உங்கள் முதல் முதலீட்டை மேலே சேர்க்கவும்.","goal_saved_amount":"இலக்குக்காக பதிவு செய்யப்பட்ட சேமிப்பு","goal_target":"இலக்கு தொகை","portfolio_reference":"போர்ட்ஃபோலியோ ஒப்பீடு","not_guaranteed":"உறுதியான நிதி அல்ல","portfolio_health_not_advice":"இந்த மதிப்பெண் பதிவு செய்யப்பட்ட தரவை மட்டுமே அடிப்படையாகக் கொண்ட கல்வி தகவல்; முதலீட்டு ஆலோசனை அல்ல.","price_source":"விலை மூலம்","market_data_may_be_delayed":"சந்தைத் தரவு தாமதமாக இருக்கலாம்"
+},
+"hi": {
+"portfolio_intelligence":"पोर्टफोलियो इंटेलिजेंस","current_value":"मौजूदा मूल्य","today_change":"आज का बदलाव","tracked_return":"दर्ज रिटर्न","portfolio_health":"पोर्टफोलियो हेल्थ","portfolio_health_sub":"आपकी दर्ज होल्डिंग और वित्तीय संदर्भ से बने समझने योग्य संकेत।","your_holdings":"आपकी होल्डिंग्स","top_holdings":"मुख्य होल्डिंग्स","view_all_holdings":"सभी होल्डिंग्स देखें","hide_all_holdings":"कम होल्डिंग्स दिखाएँ","search_holdings":"होल्डिंग खोजें","sort_by":"क्रमबद्ध करें","current_value_sort":"मौजूदा मूल्य","return_sort":"रिटर्न","name_sort":"नाम","avg_bought_price":"औसत खरीदी कीमत","latest_price":"नवीनतम कीमत","auto_market_price":"ऑटो मार्केट कीमत","manual_fallback_price":"मार्केट डेटा न मिले तभी मौजूदा कीमत","market_price_help":"समर्थित मार्केट कीमतें SIGORA अपने आप अपडेट करता है। खरीदी कीमत आपकी दर्ज लागत बनी रहती है।","price_delayed":"मार्केट कीमतें देरी से मिल सकती हैं या अस्थायी रूप से उपलब्ध न हों।","last_price_sync":"आखिरी मार्केट सिंक","goal_connection":"लक्ष्य कनेक्शन","goal_connection_sub":"मार्केट मूल्य को गारंटीकृत लक्ष्य फंड माने बिना देखें कि आपका पोर्टफोलियो आपके लक्ष्यों से कैसे जुड़ता है।","portfolio_equals_goal":"पोर्टफोलियो इस लक्ष्य राशि के {pct}% के बराबर है","no_goals_connect":"अपने निवेशों को किसी उद्देश्य से जोड़ने के लिए एक लक्ष्य बनाएं।","portfolio_to_life":"पोर्टफोलियो → जीवन","portfolio_to_life_sub":"देखें कि आपके निवेश आपकी पूरी वित्तीय स्थिति के लिए क्या अर्थ रखते हैं।","of_net_worth_invested":"आपकी मौजूदा नेट वर्थ में दर्ज निवेशों का हिस्सा","largest_holding":"सबसे बड़ी होल्डिंग","emergency_cover":"आपातकालीन फंड कवरेज","months_short":"महीने","downside_20":"यदि पोर्टफोलियो 20% गिरता है","net_worth_change":"अनुमानित नेट-वर्थ बदलाव","scenario_lab":"सिनेरियो लैब","scenario_lab_sub":"गणितीय परिदृश्य देखें — यह पूर्वानुमान या वादा किया रिटर्न नहीं है।","explore_scenarios":"परिदृश्य देखें","portfolio_drop":"पोर्टफोलियो बदलाव %","estimated_portfolio":"अनुमानित पोर्टफोलियो मूल्य","estimated_net_worth":"अनुमानित नेट वर्थ","apply_scenario":"परिदृश्य गणना करें","holdings_count":"होल्डिंग्स","refresh_prices":"मार्केट कीमतें रिफ्रेश करें","prices_refreshed":"जहाँ उपलब्ध था वहाँ मार्केट कीमतें रिफ्रेश हो गईं।","price_refresh_partial":"कुछ मार्केट कीमतें अभी रिफ्रेश नहीं हो सकीं।","add_holding":"होल्डिंग जोड़ें","investment_name":"निवेश का नाम","symbol_optional":"सिंबल (वैकल्पिक)","quantity":"मात्रा","average_cost":"औसत लागत / खरीदी कीमत","notes_optional":"नोट्स (वैकल्पिक)","portfolio_value":"पोर्टफोलियो मूल्य","gain_loss":"लाभ / हानि","market_unavailable":"मार्केट उपलब्ध नहीं","cost_basis":"लागत आधार","portfolio_share":"पोर्टफोलियो हिस्सा","remove_holding":"इस होल्डिंग को हटाएँ?","no_holdings":"अभी कोई होल्डिंग नहीं है। ऊपर अपनी पहली होल्डिंग जोड़ें।","goal_saved_amount":"लक्ष्य के लिए दर्ज बचत","goal_target":"लक्ष्य","portfolio_reference":"पोर्टफोलियो संदर्भ","not_guaranteed":"गारंटीकृत फंड नहीं","portfolio_health_not_advice":"यह स्कोर केवल दर्ज डेटा पर आधारित शैक्षिक जानकारी है; निवेश सलाह नहीं है।","price_source":"कीमत स्रोत","market_data_may_be_delayed":"मार्केट डेटा में देरी हो सकती है"
+}
+}
+for _lang, _items in _INVEST_V2_I18N.items():
+    SIGORA_TRANSLATIONS.setdefault(_lang, {}).update(_items)
+
+_INVEST_V2_HEALTH_I18N = {
+"en": {"health_not_enough":"Not enough data","health_strong":"Strong","health_balanced":"Balanced","health_attention":"Needs attention","health_concentration_risk":"High concentration risk","health_signal_very_high_concentration":"Very high single-holding concentration","health_signal_high_concentration":"High single-holding concentration","health_signal_moderate_concentration":"Moderate single-holding concentration","health_signal_controlled_concentration":"Single-holding concentration is controlled","health_signal_one_holding":"Only one holding is tracked","health_signal_limited_breadth":"Portfolio breadth is still limited","health_signal_multiple_holdings":"Multiple holdings are tracked","health_signal_one_asset_class":"Most value sits in one asset class","health_signal_low_emergency":"Emergency-fund coverage is below 3 months","health_signal_strong_emergency":"Emergency-fund coverage is 6+ months","market_price_missing":"Market price is unavailable for this holding. Enter a current price as a fallback."},
+"ta": {"health_not_enough":"போதுமான தரவு இல்லை","health_strong":"வலுவானது","health_balanced":"சமநிலை","health_attention":"கவனம் தேவை","health_concentration_risk":"அதிக ஒருமுகப்படுத்தல் அபாயம்","health_signal_very_high_concentration":"ஒரே முதலீட்டில் மிக அதிக ஒருமுகப்படுத்தல்","health_signal_high_concentration":"ஒரே முதலீட்டில் அதிக ஒருமுகப்படுத்தல்","health_signal_moderate_concentration":"ஒரே முதலீட்டில் மிதமான ஒருமுகப்படுத்தல்","health_signal_controlled_concentration":"ஒரே முதலீட்டின் ஒருமுகப்படுத்தல் கட்டுப்பாட்டில் உள்ளது","health_signal_one_holding":"ஒரே ஒரு முதலீடு மட்டுமே பதிவு செய்யப்பட்டுள்ளது","health_signal_limited_breadth":"போர்ட்ஃபோலியோ பரவல் இன்னும் குறைவாக உள்ளது","health_signal_multiple_holdings":"பல முதலீடுகள் பதிவு செய்யப்பட்டுள்ளன","health_signal_one_asset_class":"பெரும்பாலான மதிப்பு ஒரே சொத்து வகையில் உள்ளது","health_signal_low_emergency":"அவசர நிதி பாதுகாப்பு 3 மாதங்களுக்கு குறைவாக உள்ளது","health_signal_strong_emergency":"அவசர நிதி பாதுகாப்பு 6+ மாதங்கள் உள்ளது","market_price_missing":"இந்த முதலீட்டிற்கான சந்தை விலை இப்போது கிடைக்கவில்லை. மாற்றாக தற்போதைய விலையை உள்ளிடுங்கள்."},
+"hi": {"health_not_enough":"पर्याप्त डेटा नहीं","health_strong":"मजबूत","health_balanced":"संतुलित","health_attention":"ध्यान चाहिए","health_concentration_risk":"उच्च एकाग्रता जोखिम","health_signal_very_high_concentration":"एक ही होल्डिंग में बहुत अधिक एकाग्रता","health_signal_high_concentration":"एक ही होल्डिंग में अधिक एकाग्रता","health_signal_moderate_concentration":"एक ही होल्डिंग में मध्यम एकाग्रता","health_signal_controlled_concentration":"एक होल्डिंग की एकाग्रता नियंत्रित है","health_signal_one_holding":"केवल एक होल्डिंग दर्ज है","health_signal_limited_breadth":"पोर्टफोलियो का फैलाव अभी सीमित है","health_signal_multiple_holdings":"कई होल्डिंग्स दर्ज हैं","health_signal_one_asset_class":"अधिकांश मूल्य एक ही एसेट क्लास में है","health_signal_low_emergency":"आपातकालीन फंड कवरेज 3 महीने से कम है","health_signal_strong_emergency":"आपातकालीन फंड कवरेज 6+ महीने है","market_price_missing":"इस होल्डिंग की मार्केट कीमत अभी उपलब्ध नहीं है। विकल्प के रूप में मौजूदा कीमत दर्ज करें।"}
+}
+for _lang, _items in _INVEST_V2_HEALTH_I18N.items():
+    SIGORA_TRANSLATIONS.setdefault(_lang, {}).update(_items)
+
+
+# Launch polish: complete visible Investments V2 / dashboard language coverage.
+_LAUNCH_POLISH_I18N = {
+"en": {
+"invest_hero_sub":"Your money, beyond spending. Track investments, understand risk and connect your portfolio to your complete financial picture.",
+"edit_profile":"Edit profile","build_risk_profile":"Build risk profile","ai_portfolio_insight":"AI portfolio insight","important":"Important","invest_disclaimer_full":"SIGORA provides educational analytics, portfolio tracking and risk information. It does not provide personalized buy/sell recommendations, target returns or guarantees.",
+"start_here":"START HERE","investor_kind_title":"Tell SIGORA what kind of investor you are.","investor_kind_sub":"Answer a short risk-and-horizon questionnaire to unlock model allocation education and better portfolio warnings.","create_investor_profile":"Create investor profile","your_profile":"Your profile","horizon":"Horizon","years_short":"yrs","monthly_plan":"Monthly plan","invested_cost":"Invested cost",
+"sigora_signal":"SIGORA SIGNAL","portfolio_life_label":"PORTFOLIO → LIFE","goals_investments_label":"GOALS × INVESTMENTS","goals_link":"Goals","portfolio_tracker_label":"PORTFOLIO TRACKER","sector_optional":"Sector (optional)","asset_stock":"Stock","asset_index_etf":"Index fund / ETF","asset_mutual_fund":"Mutual fund","asset_fixed_income":"Fixed income","asset_gold":"Gold","asset_cash_liquid":"Cash / liquid","asset_other":"Other","market_research":"Market research","remove":"Remove",
+"attention":"ATTENTION","precautionary_signals":"Precautionary signals","diversification":"DIVERSIFICATION","what_you_own":"What you actually own","what_if":"WHAT IF?","starting_amount":"Starting amount","monthly_contribution":"Monthly contribution","years":"Years","assumed_annual_return":"Assumed annual return %","calculate_long_scenario":"Calculate long-term scenario","scenario_enter_assumptions":"Enter assumptions and calculate a scenario.","illustrative_ending_value":"Illustrative ending value",
+"educational_model":"EDUCATIONAL MODEL","allocation_example":"{profile} allocation example","generic_learning_only":"This is a generic illustration for learning — not a recommendation for your money.","investment_explorer":"INVESTMENT EXPLORER","learn_before_choose":"Learn before you choose","asset_examples_not_picks":"These are asset-class examples, not personalized picks.","typical_learning_horizon":"Typical learning horizon","watchlist":"WATCHLIST","research_queue":"Research queue","watchlist_sub":"Type a company, ETF, fund or index name. SIGORA will resolve its market ticker automatically when market data is available.","watchlist_try":"Try Reliance, Apple, Microsoft, Nifty 50...","optional_research_note":"Optional research note","find_add":"Find & add","today":"today","market_unavailable_now":"Market data unavailable right now","view_chart":"View chart","watchlist_empty":"Your watchlist is empty.",
+"warn_cashflow":"Your tracked expenses currently meet or exceed tracked income. Consider stabilising cash flow before increasing investment contributions.","warn_monthly_gt_surplus":"Your chosen monthly investment amount is higher than your tracked surplus. Review the amount before committing it.","warn_emergency_low":"Your entered emergency-fund coverage is below 3 months. Building liquidity may deserve attention before taking more market risk.","warn_asset_concentration":"{pct}% of your tracked portfolio is in {name}. High concentration can amplify losses as well as gains.","warn_sector_concentration":"{pct}% of your tracked portfolio is in the {name} sector.","warn_holding_concentration":"{name} is {pct}% of the tracked portfolio.",
+"financial_overview":"Financial overview","personal_finance_label":"PERSONAL FINANCE","at_current_pace":"At your current recorded pace","detected_before_month_end":"Detected before month-end","no_budget_breach":"No projected budget breach detected","financial_momentum":"FINANCIAL MOMENTUM","level":"Level","day_streak":"day streak","best":"best","first_transaction":"First transaction","first_move":"First move","consistent":"Consistent","budget_builder":"Budget builder","goal_setter":"Goal setter","goal_achiever":"Goal achiever","smart_alerts":"SMART ALERTS","things_worth_seeing":"Things worth seeing","active":"active","open":"Open",
+"headline_strong_momentum":"Your recorded finances are showing strong momentum."
+},
+"ta": {
+"invest_hero_sub":"செலவைத் தாண்டி உங்கள் பணத்தைப் பாருங்கள். முதலீடுகளை கண்காணித்து, அபாயத்தைப் புரிந்து, உங்கள் முழு நிதிநிலையுடன் போர்ட்ஃபோலியோவை இணைக்கவும்.",
+"edit_profile":"சுயவிவரத்தைத் திருத்து","build_risk_profile":"அபாய சுயவிவரத்தை உருவாக்கு","ai_portfolio_insight":"AI போர்ட்ஃபோலியோ விளக்கம்","important":"முக்கியம்","invest_disclaimer_full":"SIGORA கல்வி பகுப்பாய்வு, போர்ட்ஃபோலியோ கண்காணிப்பு மற்றும் அபாயத் தகவலை வழங்குகிறது. தனிப்பட்ட வாங்க/விற்க பரிந்துரைகள், இலக்கு வருமானம் அல்லது உத்தரவாதங்களை வழங்காது.",
+"start_here":"இங்கிருந்து தொடங்கு","investor_kind_title":"நீங்கள் எந்த வகை முதலீட்டாளர் என்பதை SIGORA-க்கு சொல்லுங்கள்.","investor_kind_sub":"மாதிரி சொத்து ஒதுக்கீட்டு கல்வி மற்றும் சிறந்த போர்ட்ஃபோலியோ எச்சரிக்கைகளைப் பெற சுருக்கமான அபாய-கால அளவு கேள்விகளுக்கு பதிலளிக்கவும்.","create_investor_profile":"முதலீட்டாளர் சுயவிவரத்தை உருவாக்கு","your_profile":"உங்கள் சுயவிவரம்","horizon":"கால அளவு","years_short":"ஆண்டுகள்","monthly_plan":"மாத திட்டம்","invested_cost":"முதலீட்டுச் செலவு",
+"sigora_signal":"SIGORA சிக்னல்","portfolio_life_label":"போர்ட்ஃபோலியோ → வாழ்க்கை","goals_investments_label":"இலக்குகள் × முதலீடுகள்","goals_link":"இலக்குகள்","portfolio_tracker_label":"போர்ட்ஃபோலியோ கண்காணிப்பு","sector_optional":"துறை (விருப்பம்)","asset_stock":"பங்கு","asset_index_etf":"குறியீட்டு நிதி / ETF","asset_mutual_fund":"மியூச்சுவல் ஃபண்ட்","asset_fixed_income":"நிலையான வருமானம்","asset_gold":"தங்கம்","asset_cash_liquid":"பணம் / திரவ நிதி","asset_other":"மற்றவை","market_research":"சந்தை ஆய்வு","remove":"நீக்கு",
+"attention":"கவனம்","precautionary_signals":"முன்னெச்சரிக்கை சிக்னல்கள்","diversification":"பரவலாக்கம்","what_you_own":"நீங்கள் உண்மையில் வைத்திருப்பது","what_if":"என்ன ஆகும்?","starting_amount":"தொடக்கத் தொகை","monthly_contribution":"மாதாந்திர பங்களிப்பு","years":"ஆண்டுகள்","assumed_annual_return":"கருதப்பட்ட ஆண்டு வருமானம் %","calculate_long_scenario":"நீண்டகால சூழலைக் கணக்கிடு","scenario_enter_assumptions":"கருதுகோள்களை உள்ளிட்டு ஒரு சூழலைக் கணக்கிடுங்கள்.","illustrative_ending_value":"உதாரண இறுதி மதிப்பு",
+"educational_model":"கல்வி மாதிரி","allocation_example":"{profile} சொத்து ஒதுக்கீட்டு உதாரணம்","generic_learning_only":"இது கற்றலுக்கான பொதுவான உதாரணம் மட்டுமே — உங்கள் பணத்திற்கான பரிந்துரை அல்ல.","investment_explorer":"முதலீட்டு ஆராய்ச்சி","learn_before_choose":"தேர்வு செய்வதற்கு முன் கற்றுக்கொள்ளுங்கள்","asset_examples_not_picks":"இவை சொத்து வகை உதாரணங்கள்; தனிப்பட்ட பரிந்துரைகள் அல்ல.","typical_learning_horizon":"வழக்கமான கற்றல் கால அளவு","watchlist":"கவனிப்பு பட்டியல்","research_queue":"ஆய்வு பட்டியல்","watchlist_sub":"நிறுவனம், ETF, நிதி அல்லது குறியீட்டு பெயரை உள்ளிடுங்கள். சந்தைத் தரவு கிடைத்தால் SIGORA அதன் டிக்கரை தானாக கண்டறியும்.","watchlist_try":"Reliance, Apple, Microsoft, Nifty 50 போன்றவற்றை முயற்சிக்கவும்...","optional_research_note":"விருப்ப ஆய்வு குறிப்பு","find_add":"கண்டறிந்து சேர்","today":"இன்று","market_unavailable_now":"சந்தைத் தரவு இப்போது கிடைக்கவில்லை","view_chart":"வரைபடத்தைப் பார்","watchlist_empty":"உங்கள் கவனிப்பு பட்டியல் காலியாக உள்ளது.",
+"warn_cashflow":"உங்கள் பதிவு செய்யப்பட்ட செலவுகள் தற்போது பதிவு செய்யப்பட்ட வருமானத்துக்கு சமமாகவோ அதிகமாகவோ உள்ளன. முதலீட்டு பங்களிப்பை அதிகரிக்கும் முன் பணப்புழக்கத்தை நிலைப்படுத்துவது நல்லது.","warn_monthly_gt_surplus":"நீங்கள் தேர்ந்தெடுத்த மாதாந்திர முதலீட்டு தொகை பதிவு செய்யப்பட்ட மீதத் தொகையை விட அதிகமாக உள்ளது. உறுதி செய்வதற்கு முன் தொகையை மறுபரிசீலனை செய்யுங்கள்.","warn_emergency_low":"நீங்கள் பதிவு செய்த அவசர நிதி பாதுகாப்பு 3 மாதங்களுக்கு குறைவாக உள்ளது. கூடுதல் சந்தை அபாயத்தை ஏற்கும் முன் திரவ நிதியை அதிகரிப்பது கவனிக்கத் தக்கது.","warn_asset_concentration":"உங்கள் பதிவு செய்யப்பட்ட போர்ட்ஃபோலியோவில் {pct}% {name}-ல் உள்ளது. அதிக ஒருமுகப்படுத்தல் லாபத்தையும் இழப்பையும் அதிகப்படுத்தலாம்.","warn_sector_concentration":"உங்கள் பதிவு செய்யப்பட்ட போர்ட்ஃபோலியோவில் {pct}% {name} துறையில் உள்ளது.","warn_holding_concentration":"{name} பதிவு செய்யப்பட்ட போர்ட்ஃபோலியோவில் {pct}% ஆக உள்ளது.",
+"financial_overview":"நிதி மேலோட்டம்","personal_finance_label":"தனிநபர் நிதி","at_current_pace":"உங்கள் தற்போதைய பதிவு செய்யப்பட்ட வேகத்தில்","detected_before_month_end":"மாத இறுதிக்கு முன் கண்டறியப்பட்டது","no_budget_breach":"கணிக்கப்பட்ட பட்ஜெட் மீறல் இல்லை","financial_momentum":"நிதி முன்னேற்றம்","level":"நிலை","day_streak":"நாள் தொடர்ச்சி","best":"சிறந்தது","first_transaction":"முதல் பரிவர்த்தனை","first_move":"முதல் முன்னேற்றம்","consistent":"தொடர்ச்சி","budget_builder":"பட்ஜெட் உருவாக்குபவர்","goal_setter":"இலக்கு அமைப்பவர்","goal_achiever":"இலக்கு சாதிப்பவர்","smart_alerts":"ஸ்மார்ட் எச்சரிக்கைகள்","things_worth_seeing":"கவனிக்க வேண்டியவை","active":"செயலில்","open":"திற",
+"headline_strong_momentum":"உங்கள் பதிவு செய்யப்பட்ட நிதிநிலை வலுவான முன்னேற்றத்தை காட்டுகிறது."
+},
+"hi": {
+"invest_hero_sub":"खर्च से आगे अपने पैसे को समझें। निवेश ट्रैक करें, जोखिम समझें और पोर्टफोलियो को अपनी पूरी वित्तीय स्थिति से जोड़ें।",
+"edit_profile":"प्रोफ़ाइल संपादित करें","build_risk_profile":"जोखिम प्रोफ़ाइल बनाएं","ai_portfolio_insight":"AI पोर्टफोलियो व्याख्या","important":"महत्वपूर्ण","invest_disclaimer_full":"SIGORA शैक्षिक विश्लेषण, पोर्टफोलियो ट्रैकिंग और जोखिम जानकारी देता है। यह व्यक्तिगत खरीद/बिक्री सलाह, लक्ष्य रिटर्न या गारंटी नहीं देता।",
+"start_here":"यहाँ से शुरू करें","investor_kind_title":"SIGORA को बताएं कि आप किस तरह के निवेशक हैं।","investor_kind_sub":"मॉडल एसेट-एलोकेशन शिक्षा और बेहतर पोर्टफोलियो चेतावनियों के लिए छोटा जोखिम और समय-सीमा प्रश्नावली पूरा करें।","create_investor_profile":"निवेशक प्रोफ़ाइल बनाएं","your_profile":"आपकी प्रोफ़ाइल","horizon":"समय-सीमा","years_short":"वर्ष","monthly_plan":"मासिक योजना","invested_cost":"निवेशित लागत",
+"sigora_signal":"SIGORA संकेत","portfolio_life_label":"पोर्टफोलियो → जीवन","goals_investments_label":"लक्ष्य × निवेश","goals_link":"लक्ष्य","portfolio_tracker_label":"पोर्टफोलियो ट्रैकर","sector_optional":"सेक्टर (वैकल्पिक)","asset_stock":"स्टॉक","asset_index_etf":"इंडेक्स फंड / ETF","asset_mutual_fund":"म्यूचुअल फंड","asset_fixed_income":"फिक्स्ड इनकम","asset_gold":"सोना","asset_cash_liquid":"नकद / लिक्विड","asset_other":"अन्य","market_research":"मार्केट रिसर्च","remove":"हटाएँ",
+"attention":"ध्यान","precautionary_signals":"सावधानी संकेत","diversification":"विविधीकरण","what_you_own":"आप वास्तव में क्या रखते हैं","what_if":"क्या हो अगर?","starting_amount":"शुरुआती राशि","monthly_contribution":"मासिक योगदान","years":"वर्ष","assumed_annual_return":"मान लिया वार्षिक रिटर्न %","calculate_long_scenario":"दीर्घकालीन परिदृश्य गणना करें","scenario_enter_assumptions":"मान्यताएँ दर्ज करके परिदृश्य गणना करें।","illustrative_ending_value":"उदाहरणात्मक अंतिम मूल्य",
+"educational_model":"शैक्षिक मॉडल","allocation_example":"{profile} एलोकेशन उदाहरण","generic_learning_only":"यह सीखने के लिए सामान्य उदाहरण है — आपके पैसे के लिए सलाह नहीं।","investment_explorer":"निवेश एक्सप्लोरर","learn_before_choose":"चुनने से पहले सीखें","asset_examples_not_picks":"ये एसेट-क्लास उदाहरण हैं, व्यक्तिगत चयन नहीं।","typical_learning_horizon":"सामान्य सीखने की अवधि","watchlist":"वॉचलिस्ट","research_queue":"रिसर्च कतार","watchlist_sub":"कंपनी, ETF, फंड या इंडेक्स का नाम लिखें। मार्केट डेटा मिलने पर SIGORA उसका टिकर अपने आप खोजेगा।","watchlist_try":"Reliance, Apple, Microsoft, Nifty 50 आज़माएँ...","optional_research_note":"वैकल्पिक रिसर्च नोट","find_add":"खोजें और जोड़ें","today":"आज","market_unavailable_now":"मार्केट डेटा अभी उपलब्ध नहीं है","view_chart":"चार्ट देखें","watchlist_empty":"आपकी वॉचलिस्ट खाली है।",
+"warn_cashflow":"आपके दर्ज खर्च अभी दर्ज आय के बराबर या अधिक हैं। निवेश योगदान बढ़ाने से पहले कैश फ्लो को स्थिर करने पर विचार करें।","warn_monthly_gt_surplus":"आपकी चुनी मासिक निवेश राशि दर्ज अधिशेष से अधिक है। प्रतिबद्ध होने से पहले राशि की समीक्षा करें।","warn_emergency_low":"आपका दर्ज आपातकालीन फंड कवरेज 3 महीने से कम है। अधिक मार्केट जोखिम लेने से पहले नकदी उपलब्धता बढ़ाने पर ध्यान दें।","warn_asset_concentration":"आपके दर्ज पोर्टफोलियो का {pct}% {name} में है। अधिक एकाग्रता लाभ और हानि दोनों बढ़ा सकती है।","warn_sector_concentration":"आपके दर्ज पोर्टफोलियो का {pct}% {name} सेक्टर में है।","warn_holding_concentration":"{name} दर्ज पोर्टफोलियो का {pct}% है।",
+"financial_overview":"वित्तीय अवलोकन","personal_finance_label":"पर्सनल फाइनेंस","at_current_pace":"आपकी मौजूदा दर्ज गति पर","detected_before_month_end":"महीने के अंत से पहले पहचाना गया","no_budget_breach":"कोई अनुमानित बजट उल्लंघन नहीं","financial_momentum":"वित्तीय गति","level":"लेवल","day_streak":"दिन की स्ट्रीक","best":"सर्वश्रेष्ठ","first_transaction":"पहला लेन-देन","first_move":"पहला कदम","consistent":"निरंतर","budget_builder":"बजट बिल्डर","goal_setter":"लक्ष्य बनाने वाला","goal_achiever":"लक्ष्य हासिल करने वाला","smart_alerts":"स्मार्ट अलर्ट","things_worth_seeing":"ध्यान देने योग्य बातें","active":"सक्रिय","open":"खोलें",
+"headline_strong_momentum":"आपकी दर्ज वित्तीय स्थिति मजबूत गति दिखा रही है।"
+}
+}
+for _lang, _items in _LAUNCH_POLISH_I18N.items():
+    SIGORA_TRANSLATIONS.setdefault(_lang, {}).update(_items)
+
+_DASHBOARD_AI_I18N = {
+"en": {"insight_label":"INSIGHT","recommended_next_step":"Recommended next step","focus_area":"Focus area","biggest_expense_category":"Biggest expense category","no_expense_category":"No expense category yet","dash_ai_empty_title":"Your financial picture starts here.","dash_ai_empty_body":"Add a few transactions and SIGORA will start turning your financial activity into useful patterns, spending signals and insights.","dash_ai_negative_title":"Your current spending is ahead of your income.","dash_ai_negative_body":"You've recorded {expense} in expenses against {income} in income. Review your spending categories and identify areas where you can cut unnecessary spending.","dash_ai_high_spend_title":"You're doing okay, but your spending deserves attention.","dash_ai_high_spend_body":"Around {pct}% of your recorded income has already been spent. Keeping an eye on your biggest categories could help protect your remaining balance.","dash_ai_healthy_title":"Your finances are currently in a healthy position.","dash_ai_healthy_body":"You've recorded {income} in income and {expense} in expenses, leaving you with {balance} in recorded balance. Keep tracking consistently to make this picture even more useful.","start_tracking_transactions":"Start tracking your transactions","reduce_spending":"Reduce spending","watch_spending":"Watch your spending"},
+"ta": {"insight_label":"நுண்ணறிவு","recommended_next_step":"பரிந்துரைக்கப்படும் அடுத்த படி","focus_area":"கவனம் செலுத்த வேண்டியது","biggest_expense_category":"மிகப்பெரிய செலவுப் பிரிவு","no_expense_category":"இன்னும் செலவுப் பிரிவு இல்லை","dash_ai_empty_title":"உங்கள் நிதிப் படம் இங்கிருந்து தொடங்குகிறது.","dash_ai_empty_body":"சில பரிவர்த்தனைகளைச் சேர்த்தால், உங்கள் நிதிச் செயல்பாட்டை பயனுள்ள முறைகள், செலவு சிக்னல்கள் மற்றும் நுண்ணறிவுகளாக SIGORA மாற்றத் தொடங்கும்.","dash_ai_negative_title":"உங்கள் தற்போதைய செலவு உங்கள் வருமானத்தை விட முன்னிலையில் உள்ளது.","dash_ai_negative_body":"வருமானம் {income}க்கு எதிராக {expense} செலவாக பதிவு செய்துள்ளீர்கள். உங்கள் செலவுப் பிரிவுகளைப் பார்த்து தேவையற்ற செலவை குறைக்கக்கூடிய இடங்களை கண்டறியுங்கள்.","dash_ai_high_spend_title":"நிலை சரியாக உள்ளது, ஆனால் உங்கள் செலவு கவனம் தேவைப்படுகிறது.","dash_ai_high_spend_body":"உங்கள் பதிவு செய்யப்பட்ட வருமானத்தின் சுமார் {pct}% ஏற்கனவே செலவாகியுள்ளது. மிகப்பெரிய செலவுப் பிரிவுகளை கவனிப்பது மீதமுள்ள இருப்பை பாதுகாக்க உதவும்.","dash_ai_healthy_title":"உங்கள் நிதிநிலை தற்போது ஆரோக்கியமான நிலையில் உள்ளது.","dash_ai_healthy_body":"{income} வருமானமும் {expense} செலவும் பதிவு செய்துள்ளீர்கள்; பதிவு செய்யப்பட்ட மீதம் {balance}. தொடர்ந்து கண்காணிப்பது இந்தப் படத்தை மேலும் பயனுள்ளதாக மாற்றும்.","start_tracking_transactions":"உங்கள் பரிவர்த்தனைகளை கண்காணிக்கத் தொடங்குங்கள்","reduce_spending":"செலவை குறைக்கவும்","watch_spending":"உங்கள் செலவை கவனிக்கவும்"},
+"hi": {"insight_label":"इनसाइट","recommended_next_step":"सुझाया अगला कदम","focus_area":"ध्यान का क्षेत्र","biggest_expense_category":"सबसे बड़ा खर्च वर्ग","no_expense_category":"अभी कोई खर्च वर्ग नहीं","dash_ai_empty_title":"आपकी वित्तीय तस्वीर यहाँ से शुरू होती है।","dash_ai_empty_body":"कुछ लेन-देन जोड़ें और SIGORA आपकी वित्तीय गतिविधि को उपयोगी पैटर्न, खर्च संकेत और इनसाइट में बदलना शुरू करेगा।","dash_ai_negative_title":"आपका मौजूदा खर्च आपकी आय से आगे है।","dash_ai_negative_body":"आपने {income} आय के मुकाबले {expense} खर्च दर्ज किया है। अपने खर्च वर्गों की समीक्षा करें और अनावश्यक खर्च घटाने के अवसर खोजें।","dash_ai_high_spend_title":"स्थिति ठीक है, लेकिन आपके खर्च पर ध्यान देना चाहिए।","dash_ai_high_spend_body":"आपकी दर्ज आय का लगभग {pct}% पहले ही खर्च हो चुका है। सबसे बड़े खर्च वर्गों पर नज़र रखना शेष बैलेंस बचाने में मदद कर सकता है।","dash_ai_healthy_title":"आपकी वित्तीय स्थिति अभी स्वस्थ है।","dash_ai_healthy_body":"आपने {income} आय और {expense} खर्च दर्ज किया है, जिससे {balance} दर्ज बैलेंस बचता है। लगातार ट्रैक करते रहें ताकि यह तस्वीर और उपयोगी बने।","start_tracking_transactions":"अपने लेन-देन ट्रैक करना शुरू करें","reduce_spending":"खर्च कम करें","watch_spending":"खर्च पर नज़र रखें"}
+}
+for _lang, _items in _DASHBOARD_AI_I18N.items():
+    SIGORA_TRANSLATIONS.setdefault(_lang, {}).update(_items)
+
+_EXPLORER_PHRASES = {
+"ta": {
+"Broad-market equity":"பரந்த சந்தை பங்குகள்","Broader equity":"மேலும் பரந்த பங்குச் சந்தை","Government fixed income":"அரசு நிலையான வருமானம்","Bank deposits":"வங்கி வைப்பு","Gold":"தங்கம்","Individual equities":"தனிநபர் பங்குகள்","Nifty 50 / Sensex index funds or ETFs":"Nifty 50 / Sensex குறியீட்டு நிதிகள் அல்லது ETF-கள்","Nifty 500 / total-market style index funds":"Nifty 500 / மொத்த சந்தை வகை குறியீட்டு நிதிகள்","Treasury bills / government securities":"Treasury bills / அரசு பத்திரங்கள்","FD / RD from regulated banks":"ஒழுங்குபடுத்தப்பட்ட வங்கிகளின் FD / RD","Gold ETF / eligible regulated gold products":"Gold ETF / தகுதியான ஒழுங்குபடுத்தப்பட்ட தங்க தயாரிப்புகள்","Listed companies across banking, IT, consumer, industrial and other sectors":"வங்கி, IT, நுகர்வோர், தொழில் மற்றும் பிற துறைகளில் பட்டியலிடப்பட்ட நிறுவனங்கள்","Diversified exposure to large Indian companies.":"பெரிய இந்திய நிறுவனங்களில் பரவலான முதலீட்டு வெளிப்பாடு.","Wider equity diversification across market segments.":"சந்தையின் பல பிரிவுகளிலும் விரிவான பங்கு பரவலாக்கம்.","Lower-volatility fixed-income exposure; values can still move with interest rates.":"குறைந்த ஏற்றத் தாழ்வுள்ள நிலையான வருமான வெளிப்பாடு; வட்டி விகிதங்களால் மதிப்பு மாறலாம்.","Capital stability and predictable interest, subject to institution/tenure terms.":"நிறுவனம் மற்றும் காலநிலை விதிகளுக்கு உட்பட்டு முதல்தொகை நிலைத்தன்மை மற்றும் கணிக்கக்கூடிய வட்டி.","Diversifier; prices can be volatile and do not generate business cash flows.":"பரவலாக்க உதவும்; விலைகள் ஏற்றத் தாழ்வாக இருக்கலாம் மற்றும் வணிக பணப்புழக்கத்தை உருவாக்காது.","Company-specific exposure requiring deeper research and diversification.":"ஆழமான ஆய்வும் பரவலாக்கமும் தேவைப்படும் நிறுவனம் சார்ந்த முதலீட்டு வெளிப்பாடு.","High":"அதிகம்","Low–Moderate":"குறைவு–மிதம்","Low":"குறைவு","Moderate":"மிதம்","5+ years":"5+ ஆண்டுகள்","7+ years":"7+ ஆண்டுகள்","Months to years":"மாதங்கள் முதல் ஆண்டுகள் வரை","Defined tenure":"நிர்ணயிக்கப்பட்ட காலம்","3+ years":"3+ ஆண்டுகள்"},
+"hi": {
+"Broad-market equity":"व्यापक बाज़ार इक्विटी","Broader equity":"और व्यापक इक्विटी","Government fixed income":"सरकारी फिक्स्ड इनकम","Bank deposits":"बैंक जमा","Gold":"सोना","Individual equities":"व्यक्तिगत शेयर","Nifty 50 / Sensex index funds or ETFs":"Nifty 50 / Sensex इंडेक्स फंड या ETF","Nifty 500 / total-market style index funds":"Nifty 500 / कुल-बाज़ार शैली इंडेक्स फंड","Treasury bills / government securities":"ट्रेज़री बिल / सरकारी प्रतिभूतियाँ","FD / RD from regulated banks":"विनियमित बैंकों की FD / RD","Gold ETF / eligible regulated gold products":"Gold ETF / पात्र विनियमित गोल्ड उत्पाद","Listed companies across banking, IT, consumer, industrial and other sectors":"बैंकिंग, IT, उपभोक्ता, औद्योगिक और अन्य क्षेत्रों की सूचीबद्ध कंपनियाँ","Diversified exposure to large Indian companies.":"बड़ी भारतीय कंपनियों में विविध एक्सपोज़र।","Wider equity diversification across market segments.":"बाज़ार के विभिन्न हिस्सों में अधिक व्यापक इक्विटी विविधीकरण।","Lower-volatility fixed-income exposure; values can still move with interest rates.":"कम उतार-चढ़ाव वाला फिक्स्ड-इनकम एक्सपोज़र; ब्याज दरों के साथ मूल्य बदल सकता है।","Capital stability and predictable interest, subject to institution/tenure terms.":"संस्था और अवधि की शर्तों के अधीन पूंजी स्थिरता और अपेक्षाकृत पूर्वानुमेय ब्याज।","Diversifier; prices can be volatile and do not generate business cash flows.":"विविधीकरण में मदद करता है; कीमतें अस्थिर हो सकती हैं और व्यावसायिक कैश फ्लो पैदा नहीं करतीं।","Company-specific exposure requiring deeper research and diversification.":"कंपनी-विशिष्ट एक्सपोज़र जिसमें अधिक रिसर्च और विविधीकरण चाहिए।","High":"उच्च","Low–Moderate":"कम–मध्यम","Low":"कम","Moderate":"मध्यम","5+ years":"5+ वर्ष","7+ years":"7+ वर्ष","Months to years":"महीनों से वर्षों तक","Defined tenure":"निर्धारित अवधि","3+ years":"3+ वर्ष"}
+}
+for _lang, _items in _EXPLORER_PHRASES.items():
+    SIGORA_PHRASE_TRANSLATIONS.setdefault(_lang, {}).update(_items)
 
 def _sigora_language():
     lang = session.get("sigora_language", "en")
@@ -2642,6 +2723,60 @@ def _market_search(query):
     except Exception:
         return []
 
+def _market_symbol_candidates(symbol, holding_currency="", name=""):
+    """Return sensible Yahoo ticker candidates without requiring users to know exchange suffixes."""
+    raw=(symbol or "").strip().upper()
+    cur=(holding_currency or "").strip().upper()
+    candidates=[]
+    def add(v):
+        v=(v or "").strip().upper()
+        if v and v not in candidates:
+            candidates.append(v)
+    known_suffixes=(".NS",".BO",".L",".TO",".AX",".HK",".SI",".PA",".DE",".F",".SA")
+    if raw:
+        if raw.endswith(known_suffixes) or raw.startswith("^") or "=" in raw or "-" in raw:
+            add(raw)
+        elif cur == "INR":
+            add(raw+".NS"); add(raw+".BO"); add(raw)
+        else:
+            add(raw); add(raw+".NS"); add(raw+".BO")
+    # Name search helps recover from incomplete/wrong raw tickers and works for funds/indices too.
+    if name:
+        try:
+            for hit in _market_search(name)[:6]:
+                hs=hit.get("symbol")
+                if cur == "INR":
+                    # Prefer Indian listings for INR holdings when Yahoo returns several global matches.
+                    if str(hs or "").upper().endswith((".NS",".BO")):
+                        add(hs)
+                else:
+                    add(hs)
+            if cur == "INR":
+                for hit in _market_search(name)[:6]:
+                    add(hit.get("symbol"))
+        except Exception:
+            pass
+    return candidates[:8]
+
+def _resolve_market_quote(symbol, name="", holding_currency=""):
+    """Resolve a user-friendly ticker then fetch and validate the latest supported market quote."""
+    for candidate in _market_symbol_candidates(symbol, holding_currency, name):
+        m=_market_chart(candidate,"5d","1d")
+        if not m:
+            continue
+        try:
+            price=float(m.get("price"))
+        except (TypeError,ValueError):
+            continue
+        if not math.isfinite(price) or price <= 0:
+            continue
+        m["requested_symbol"]=(symbol or "").strip().upper()
+        m["resolved_symbol"]=candidate
+        m["source"]="Yahoo Finance"
+        m["fetched_at"]=datetime.utcnow().replace(microsecond=0).isoformat()+"Z"
+        return m
+    return None
+
 def _market_chart(symbol, range_="1mo", interval="1d"):
     """Fetch market metadata plus a real historical series; never fabricate chart points."""
     try:
@@ -2716,18 +2851,139 @@ def _plain_market_explanation(m):
     else: trend=""
     return tone+trend+" Short-term price moves do not tell you whether an investment is suitable; look at the business/fund, diversification, time horizon and risk as well."
 
+def _refresh_holding_market_prices(user_id, holdings, force=False, max_refresh=12):
+    """Refresh supported holdings without turning a large portfolio into a slow serial page load."""
+    now=datetime.utcnow(); candidates=[]
+    for h in holdings:
+        if not h.get("symbol"):
+            continue
+        stale=True
+        stamp=h.get("market_price_updated_at")
+        if stamp and not force:
+            try:
+                stale=(now-datetime.fromisoformat(stamp)).total_seconds() >= 900
+            except Exception:
+                stale=True
+        if stale:
+            candidates.append(h)
+        if len(candidates) >= max_refresh:
+            break
+    if not candidates:
+        return 0,0
+    ok=0
+    def fetch(h):
+        return h, _resolve_market_quote(h.get("symbol"), h.get("name",""), h.get("currency",""))
+    with ThreadPoolExecutor(max_workers=min(6,len(candidates))) as pool:
+        futures=[pool.submit(fetch,h) for h in candidates]
+        for fut in as_completed(futures):
+            try:
+                h,m=fut.result()
+                if m and m.get("price") is not None:
+                    price=float(m["price"])
+                    market_currency=(m.get("currency") or h.get("currency") or "INR").upper()
+                    holding_currency=(h.get("currency") or market_currency).upper()
+                    if market_currency != holding_currency:
+                        price=float(convert_amount(price,market_currency,holding_currency,datetime.now().strftime("%Y-%m-%d")))
+                    update_investment_price(user_id,h["id"],price,m.get("change_pct"),market_sync=True,resolved_symbol=m.get("resolved_symbol"))
+                    ok+=1
+            except Exception:
+                pass
+    return ok,len(candidates)
+
+
+def _portfolio_life_context(user, portfolio, profile):
+    cash=0.0; liabilities=0.0; base_currency=user.get("currency","INR")
+    try:
+        for a in list_financial_accounts(user["id"]):
+            bal=a.get("live_balance")
+            if bal is None: continue
+            amount=float(bal or 0); cur=a.get("currency") or base_currency
+            if cur != base_currency:
+                try: amount=float(convert_amount(amount,cur,base_currency,datetime.now().strftime("%Y-%m-%d")))
+                except Exception: continue
+            if str(a.get("account_type") or "").lower() in {"credit_card","loan","liability","bnpl"}: liabilities += max(0,amount)
+            else: cash += amount
+    except Exception:
+        pass
+    investments=float(portfolio.get("value") or 0)
+    net_worth=cash+investments-liabilities
+    invested_share=(investments/net_worth*100) if net_worth>0 else None
+    return {"cash":cash,"liabilities":liabilities,"investments":investments,"net_worth":net_worth,
+            "invested_share":invested_share,"down20":investments*0.20,
+            "largest":portfolio.get("biggest_holding"),"largest_pct":portfolio.get("biggest_pct",0),
+            "emergency_months":float((profile or {}).get("emergency_months",0) or 0)}
+
+
+def _investment_goal_connections(user, portfolio):
+    out=[]
+    base=user.get("currency","INR"); pvalue=float(portfolio.get("value") or 0)
+    for g in get_goals(user["id"]):
+        target=float(g.get("target_amount") or 0); saved=float(g.get("current_amount") or 0); cur=g.get("currency") or base
+        target_base=target; saved_base=saved
+        if cur != base:
+            try:
+                target_base=float(convert_amount(target,cur,base,datetime.now().strftime("%Y-%m-%d"))); saved_base=float(convert_amount(saved,cur,base,datetime.now().strftime("%Y-%m-%d")))
+            except Exception:
+                continue
+        pct=(pvalue/target_base*100) if target_base>0 else 0
+        out.append({**g,"target_base":target_base,"saved_base":saved_base,"portfolio_pct":pct})
+    return out[:5]
+
+
+def _localized_investment_messages(cashflow, portfolio):
+    cash=[]
+    for msg in cashflow.get("messages", []):
+        if msg.startswith("Your tracked expenses currently meet or exceed"):
+            cash.append(_t("warn_cashflow"))
+        elif msg.startswith("Your chosen monthly investment amount is higher"):
+            cash.append(_t("warn_monthly_gt_surplus"))
+        elif msg.startswith("Your entered emergency-fund coverage is below"):
+            cash.append(_t("warn_emergency_low"))
+        else:
+            cash.append(msg)
+    warnings=[]
+    import re
+    for msg in portfolio.get("warnings", []):
+        m=re.match(r"([0-9.]+)% of your tracked portfolio is in (.+)\. High concentration", msg)
+        if m:
+            _asset_labels={"Stock":_t("asset_stock"),"Index fund / ETF":_t("asset_index_etf"),"Mutual fund":_t("asset_mutual_fund"),"Fixed income":_t("asset_fixed_income"),"Gold":_t("asset_gold"),"Cash / liquid":_t("asset_cash_liquid"),"Other":_t("asset_other")}
+            warnings.append(_t("warn_asset_concentration").format(pct=m.group(1), name=_asset_labels.get(m.group(2),m.group(2)))); continue
+        m=re.match(r"([0-9.]+)% of your tracked portfolio is in the (.+) sector\.", msg)
+        if m:
+            warnings.append(_t("warn_sector_concentration").format(pct=m.group(1), name=m.group(2))); continue
+        m=re.match(r"(.+) is ([0-9.]+)% of the tracked portfolio\.", msg)
+        if m:
+            warnings.append(_t("warn_holding_concentration").format(name=m.group(1), pct=m.group(2))); continue
+        warnings.append(msg)
+    return cash, warnings
+
 @app.route("/invest")
 def invest():
     user=get_current_user()
     if not user: return redirect("/login")
     profile=get_profile(user["id"])
+    initial=portfolio_summary(user["id"])
+    _refresh_holding_market_prices(user["id"], initial.get("holdings",[]), force=False, max_refresh=12)
     portfolio=portfolio_summary(user["id"])
     cashflow=financial_investment_context(user["id"], profile)
+    cashflow_messages, portfolio_warning_texts = _localized_investment_messages(cashflow, portfolio)
+    health=portfolio_health(portfolio,cashflow)
+    life=_portfolio_life_context(user,portfolio,profile)
+    goal_connections=_investment_goal_connections(user,portfolio)
     allocation=model_allocation(profile["profile"]) if profile else None
     watchlist=get_watchlist(user["id"])
     for item in watchlist:
         item["market"]=_market_chart(item.get("symbol"), "5d", "1d") if item.get("symbol") else None
-    return render_template("invest.html", profile=profile, portfolio=portfolio, cashflow=cashflow, allocation=allocation, watchlist=watchlist, explorer=EXPLORER)
+    return render_template("invest.html", profile=profile, portfolio=portfolio, cashflow=cashflow, cashflow_messages=cashflow_messages, portfolio_warning_texts=portfolio_warning_texts, health=health, life=life, goal_connections=goal_connections, allocation=allocation, watchlist=watchlist, explorer=EXPLORER)
+
+@app.route("/invest/refresh-prices", methods=["POST"])
+def investment_refresh_prices():
+    user=get_current_user()
+    if not user: return redirect("/login")
+    holdings=portfolio_summary(user["id"]).get("holdings",[])
+    ok,total=_refresh_holding_market_prices(user["id"],holdings,force=True,max_refresh=36)
+    flash(_t("prices_refreshed") if ok==total else _t("price_refresh_partial"), "success" if ok else "warning")
+    return redirect("/invest")
 
 @app.route("/invest/profile", methods=["GET","POST"])
 def investment_profile():
@@ -2747,7 +3003,25 @@ def investment_add():
     user=get_current_user()
     if not user: return redirect("/login")
     try:
-        add_investment(user["id"], request.form.get("name","").strip(), request.form.get("symbol","").strip().upper(), request.form.get("asset_type","Stock"), request.form.get("sector","").strip(), float(request.form.get("quantity",0)), float(request.form.get("average_cost",0)), float(request.form.get("current_price",0)), user.get("currency","INR"), request.form.get("notes","").strip())
+        name=request.form.get("name","").strip()
+        symbol=request.form.get("symbol","").strip().upper()
+        market=_resolve_market_quote(symbol,name,user.get("currency","INR")) if (symbol or name) else None
+        if market and market.get("resolved_symbol"):
+            symbol=market["resolved_symbol"]
+        manual=request.form.get("current_price","").strip()
+        if market and market.get("price") is not None:
+            current=float(market["price"])
+            market_currency=(market.get("currency") or user.get("currency","INR")).upper()
+            user_currency=user.get("currency","INR").upper()
+            if market_currency != user_currency:
+                current=float(convert_amount(current,market_currency,user_currency,datetime.now().strftime("%Y-%m-%d")))
+        elif manual:
+            current=float(manual)
+        else:
+            flash(_t("market_price_missing"),"warning")
+            return redirect("/invest")
+        add_investment(user["id"], name, symbol, request.form.get("asset_type","Stock"), request.form.get("sector","").strip(), float(request.form.get("quantity",0)), float(request.form.get("average_cost",0)), current, user.get("currency","INR"), request.form.get("notes","").strip())
+        # Persist market metadata on the newly inserted holding during the normal page refresh.
         flash("Investment added to your tracker.", "success")
     except (ValueError, TypeError): flash("Please enter valid investment values.", "danger")
     return redirect("/invest")

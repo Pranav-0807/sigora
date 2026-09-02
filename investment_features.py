@@ -39,6 +39,8 @@ def ensure_investment_schema():
                 )
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_investments_user ON investments(user_id)")
+            cur.execute("ALTER TABLE investments ADD COLUMN IF NOT EXISTS market_change_pct NUMERIC(12,4)")
+            cur.execute("ALTER TABLE investments ADD COLUMN IF NOT EXISTS market_price_updated_at TIMESTAMP")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS investment_watchlist (
                     id SERIAL PRIMARY KEY,
@@ -138,11 +140,18 @@ def add_investment(user_id, name, symbol, asset_type, sector, quantity, average_
         conn.close()
 
 
-def update_investment_price(user_id, investment_id, current_price):
+def update_investment_price(user_id, investment_id, current_price, change_pct=None, market_sync=False, resolved_symbol=None):
     conn=get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("UPDATE investments SET current_price=%s,updated_at=CURRENT_TIMESTAMP WHERE id=%s AND user_id=%s", (_num(current_price),investment_id,user_id))
+            if market_sync:
+                cur.execute("""UPDATE investments SET current_price=%s, market_change_pct=%s,
+                            market_price_updated_at=CURRENT_TIMESTAMP,
+                            symbol=COALESCE(NULLIF(%s,''),symbol), updated_at=CURRENT_TIMESTAMP
+                            WHERE id=%s AND user_id=%s""",
+                            (_num(current_price), change_pct, (resolved_symbol or '').upper(), investment_id, user_id))
+            else:
+                cur.execute("UPDATE investments SET current_price=%s,updated_at=CURRENT_TIMESTAMP WHERE id=%s AND user_id=%s", (_num(current_price),investment_id,user_id))
         conn.commit()
     finally: conn.close()
 
@@ -160,7 +169,9 @@ def get_investments(user_id):
     conn=get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id,name,symbol,asset_type,sector,quantity,average_cost,current_price,currency,notes FROM investments WHERE user_id=%s ORDER BY current_price*quantity DESC,id DESC", (user_id,))
+            cur.execute("""SELECT id,name,symbol,asset_type,sector,quantity,average_cost,current_price,currency,notes,
+                           market_change_pct,market_price_updated_at
+                           FROM investments WHERE user_id=%s ORDER BY current_price*quantity DESC,id DESC""", (user_id,))
             rows=cur.fetchall()
     finally: conn.close()
     out=[]
@@ -169,6 +180,8 @@ def get_investments(user_id):
         invested=qty*cost; value=qty*price; gain=value-invested
         out.append({'id':r[0],'name':r[1],'symbol':r[2] or '','asset_type':r[3],'sector':r[4] or 'Unspecified','quantity':qty,
                     'average_cost':cost,'current_price':price,'currency':r[8] or 'INR','notes':r[9] or '',
+                    'market_change_pct':float(r[10]) if r[10] is not None else None,
+                    'market_price_updated_at':str(r[11]) if r[11] else None,
                     'invested':invested,'value':value,'gain':gain,'return_pct':(gain/invested*100 if invested else 0)})
     return out
 
@@ -208,16 +221,54 @@ def portfolio_summary(user_id):
     allocations={k:(v/value*100 if value else 0) for k,v in by_asset.items()}
     sectors={k:(v/value*100 if value else 0) for k,v in by_sector.items()}
     warnings=[]
+    biggest=max(holdings,key=lambda x:x['value']) if holdings else None
+    biggest_pct=(biggest['value']/value*100) if biggest and value else 0
     if value:
         if allocations and max(allocations.values()) >= 75:
             k=max(allocations,key=allocations.get); warnings.append(f"{allocations[k]:.0f}% of your tracked portfolio is in {k}. High concentration can amplify losses as well as gains.")
         if sectors and max(sectors.values()) >= 50 and max(sectors,key=sectors.get) != 'Unspecified':
             k=max(sectors,key=sectors.get); warnings.append(f"{sectors[k]:.0f}% of your tracked portfolio is in the {k} sector.")
-        biggest=max(holdings,key=lambda x:x['value']) if holdings else None
-        if biggest and biggest['value']/value >= .35:
-            warnings.append(f"{biggest['name']} is {biggest['value']/value*100:.0f}% of the tracked portfolio.")
+        if biggest and biggest_pct >= 35:
+            warnings.append(f"{biggest['name']} is {biggest_pct:.0f}% of the tracked portfolio.")
+    today_change=sum((x['value'] * (x.get('market_change_pct') or 0) / (100 + (x.get('market_change_pct') or 0))) if (x.get('market_change_pct') is not None and (100 + x.get('market_change_pct')) != 0) else 0 for x in holdings)
+    today_pct=(today_change/(value-today_change)*100) if value and (value-today_change) else 0
     return {'holdings':holdings,'invested':invested,'value':value,'gain':gain,'return_pct':(gain/invested*100 if invested else 0),
-            'allocations':dict(allocations),'sectors':dict(sectors),'warnings':warnings}
+            'allocations':dict(allocations),'sectors':dict(sectors),'warnings':warnings,
+            'biggest_holding':biggest,'biggest_pct':biggest_pct,'today_change':today_change,'today_pct':today_pct}
+
+
+def portfolio_health(portfolio, cashflow=None):
+    """Explainable educational portfolio-health score. No security recommendations."""
+    holdings=portfolio.get('holdings') or []
+    if not holdings:
+        return {'score':None,'label_key':'health_not_enough','signal_keys':[]}
+    score=100; signals=[]
+    biggest=float(portfolio.get('biggest_pct') or 0)
+    if biggest >= 60:
+        score-=30; signals.append('health_signal_very_high_concentration')
+    elif biggest >= 40:
+        score-=20; signals.append('health_signal_high_concentration')
+    elif biggest >= 25:
+        score-=8; signals.append('health_signal_moderate_concentration')
+    else:
+        signals.append('health_signal_controlled_concentration')
+    asset_count=len([v for v in (portfolio.get('allocations') or {}).values() if v > 1])
+    if len(holdings) == 1:
+        score-=20; signals.append('health_signal_one_holding')
+    elif len(holdings) < 4:
+        score-=10; signals.append('health_signal_limited_breadth')
+    else:
+        signals.append('health_signal_multiple_holdings')
+    if asset_count <= 1 and len(holdings) >= 2:
+        score-=10; signals.append('health_signal_one_asset_class')
+    cf=cashflow or {}
+    if cf.get('emergency_months',0) < 3:
+        score-=12; signals.append('health_signal_low_emergency')
+    elif cf.get('emergency_months',0) >= 6:
+        signals.append('health_signal_strong_emergency')
+    score=max(0,min(100,score))
+    label='health_strong' if score>=80 else 'health_balanced' if score>=65 else 'health_attention' if score>=45 else 'health_concentration_risk'
+    return {'score':score,'label_key':label,'signal_keys':signals[:4]}
 
 
 def financial_investment_context(user_id, profile=None):
