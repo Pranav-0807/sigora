@@ -1,4 +1,5 @@
 import os
+import uuid
 
 import psycopg
 from dotenv import load_dotenv
@@ -51,17 +52,12 @@ def delete_transaction(user_id, transaction_id):
 
     with conn.cursor() as cur:
 
-        cur.execute(
-            """
-            DELETE FROM transactions
-            WHERE id = %s
-              AND user_id = %s
-            """,
-            (
-                transaction_id,
-                user_id
-            )
-        )
+        cur.execute("SELECT transfer_group_id FROM transactions WHERE id=%s AND user_id=%s", (transaction_id,user_id))
+        row=cur.fetchone()
+        if row and row[0]:
+            cur.execute("DELETE FROM transactions WHERE user_id=%s AND transfer_group_id=%s", (user_id,row[0]))
+        else:
+            cur.execute("DELETE FROM transactions WHERE id=%s AND user_id=%s", (transaction_id,user_id))
 
     conn.commit()
     conn.close()
@@ -128,6 +124,60 @@ def add_transaction(user_id, transaction_type, amount, category, description, da
     except Exception:
         conn.rollback(); raise
     finally: conn.close()
+
+
+
+def create_transfer(user_id, amount, from_account_id, to_account_id, description, date, currency=None):
+    """Move money between two owned accounts without creating income/expense."""
+    if int(from_account_id) == int(to_account_id):
+        raise ValueError("Choose two different accounts.")
+    conn=get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id,currency FROM financial_accounts WHERE user_id=%s AND id IN (%s,%s)", (user_id,from_account_id,to_account_id))
+            rows=cur.fetchall()
+            if len(rows) != 2:
+                raise ValueError("Choose valid accounts you own.")
+            currencies={r[0]:(r[1] or currency or 'INR') for r in rows}
+            if currencies[int(from_account_id)] != currencies[int(to_account_id)]:
+                raise ValueError("Transfers between different account currencies need an explicit FX amount and are not supported yet.")
+            curcode=currency or currencies[int(from_account_id)]
+            group=uuid.uuid4().hex
+            cur.execute("""INSERT INTO transactions(user_id,transaction_type,amount,currency,category,description,date,source,financial_account_id,transfer_group_id)
+                           VALUES(%s,'transfer_out',%s,%s,'Transfer',%s,%s,'manual_transfer',%s,%s)""",
+                        (user_id,amount,curcode,description,date,from_account_id,group))
+            cur.execute("""INSERT INTO transactions(user_id,transaction_type,amount,currency,category,description,date,source,financial_account_id,transfer_group_id)
+                           VALUES(%s,'transfer_in',%s,%s,'Transfer',%s,%s,'manual_transfer',%s,%s)""",
+                        (user_id,amount,curcode,description,date,to_account_id,group))
+        conn.commit(); return group
+    except Exception:
+        conn.rollback(); raise
+    finally:
+        conn.close()
+
+
+def get_or_create_physical_cash_account(user_id, currency='INR', opening_balance=None):
+    """Return the user's single Physical Cash account, creating it on first use."""
+    ensure_financial_account_balance_schema()
+    conn=get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM financial_accounts WHERE user_id=%s AND account_type='cash' ORDER BY id LIMIT 1", (user_id,))
+            row=cur.fetchone()
+            if row:
+                return row[0]
+            if opening_balance is None:
+                raise ValueError("Enter your current physical cash balance the first time you use Physical Cash.")
+            cur.execute("""INSERT INTO financial_accounts
+                (user_id,provider,institution_name,account_name,account_type,country,currency,balance,status,last_synced_at,balance_as_of)
+                VALUES(%s,'manual','Cash','Physical Cash','cash','India',%s,%s,'manual',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING id""",
+                (user_id,currency,opening_balance))
+            aid=cur.fetchone()[0]
+        conn.commit(); return aid
+    except Exception:
+        conn.rollback(); raise
+    finally:
+        conn.close()
 
 
 # =====================================================
@@ -832,6 +882,7 @@ def ensure_financial_account_balance_schema():
     try:
         with conn.cursor() as cur:
             cur.execute("ALTER TABLE financial_accounts ADD COLUMN IF NOT EXISTS balance_as_of TIMESTAMP")
+            cur.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transfer_group_id VARCHAR(64)")
         conn.commit()
         _financial_balance_schema_ready = True
     finally:
@@ -863,8 +914,8 @@ def list_financial_accounts(user_id):
             out=[]
             for r in rows:
                 cur.execute("""SELECT
-                    COALESCE(SUM(CASE WHEN transaction_type='income' AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0),
-                    COALESCE(SUM(CASE WHEN transaction_type='expense' AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0)
+                    COALESCE(SUM(CASE WHEN transaction_type IN ('income','transfer_in') AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0),
+                    COALESCE(SUM(CASE WHEN transaction_type IN ('expense','transfer_out') AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0)
                     FROM transactions WHERE user_id=%s AND financial_account_id=%s""",
                     (r[13],r[13],r[13],r[13],user_id,r[0]))
                 movement=cur.fetchone()
@@ -889,8 +940,8 @@ def get_financial_account_activity(user_id, account_id, limit=100):
                            WHERE user_id=%s AND financial_account_id=%s ORDER BY date DESC,id DESC LIMIT %s""",(user_id,account_id,limit)); rows=cur.fetchall()
             cur.execute("""SELECT COALESCE(SUM(CASE WHEN transaction_type='income' THEN amount ELSE 0 END),0),
                          COALESCE(SUM(CASE WHEN transaction_type='expense' THEN amount ELSE 0 END),0),COUNT(*),MIN(date),MAX(date),
-                         COALESCE(SUM(CASE WHEN transaction_type='income' AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0),
-                         COALESCE(SUM(CASE WHEN transaction_type='expense' AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0)
+                         COALESCE(SUM(CASE WHEN transaction_type IN ('income','transfer_in') AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0),
+                         COALESCE(SUM(CASE WHEN transaction_type IN ('expense','transfer_out') AND (%s::timestamp IS NULL OR created_at > %s::timestamp) THEN amount ELSE 0 END),0)
                          FROM transactions WHERE user_id=%s AND financial_account_id=%s""",(ar[2],ar[2],ar[2],ar[2],user_id,account_id)); sm=cur.fetchone()
             cur.execute("""SELECT category,COALESCE(SUM(amount),0) FROM transactions WHERE user_id=%s AND financial_account_id=%s AND transaction_type='expense' GROUP BY category ORDER BY SUM(amount) DESC LIMIT 5""",(user_id,account_id)); cats=cur.fetchall()
         tx=[{"id":r[0],"transaction_type":r[1],"amount":float(r[2]),"currency":r[3] or "INR","category":r[4],"description":r[5],"date":str(r[6]),"source":r[7],"created_at":str(r[8])} for r in rows]

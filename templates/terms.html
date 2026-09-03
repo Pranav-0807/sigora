@@ -1,33 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="legal-page">
-<span class="eyebrow">LEGAL</span>
-<h1>Terms of Service</h1>
-<p class="legal-updated">Last updated: 31 August 2026</p>
-<p>These Terms govern your use of Sigora. By using the service, you agree to use it lawfully and responsibly.</p>
-
-<h2>Public Beta</h2>
-<p>Sigora is currently a public-beta product. Features, limits, integrations, pricing, and availability may change as the service develops. We may modify, suspend, or discontinue beta features when reasonably necessary.</p>
-
-<h2>Your account</h2>
-<p>You are responsible for keeping your login credentials secure and for activity performed through your account. Provide accurate information and do not attempt to access another person's account or bypass service safeguards.</p>
-
-<h2>Your financial information</h2>
-<p>You control the information you add or import into Sigora. You should review imported transactions, balances, calculations, market information, and generated insights before relying on them. Sigora may contain errors, delays, or incomplete data.</p>
-
-<h2>Acceptable use</h2>
-<p>Do not misuse Sigora, interfere with the service, probe or exploit security vulnerabilities, automate abusive traffic, upload malicious content, or use the platform for unlawful activity.</p>
-
-<h2>Premium and payments</h2>
-<p>Sigora may offer paid Premium subscriptions through a third-party payment processor such as Razorpay. The price and billing cycle shown at checkout apply to your purchase. Subscriptions renew according to the selected billing cycle until cancelled or otherwise ended. Where in-app cancellation is available, a cancellation request is scheduled for the end of the current billing cycle. Payment processing, mandates, and settlement are handled by the payment provider. If you believe you were charged incorrectly, contact Sigora support promptly so the transaction can be reviewed. Nothing in these Terms limits any refund or consumer rights that apply under law.</p>
-
-<h2>No warranties</h2>
-<p>Sigora is provided on an "as available" basis during beta. To the extent permitted by law, we do not guarantee uninterrupted availability, error-free calculations, investment outcomes, or that third-party integrations will always remain available.</p>
-
-<h2>Limitation and responsibility</h2>
-<p>You remain responsible for financial decisions made using information available through Sigora. Nothing in these Terms excludes rights or liabilities that cannot lawfully be excluded.</p>
-
-<h2>Contact</h2>
-<p>Questions about these Terms can be sent to <a href="mailto:{{ support_email or 'support.sigora@gmail.com' }}">{{ support_email or 'support.sigora@gmail.com' }}</a>.</p>
+<span class="eyebrow">{{ t('legal') }}</span><h1>{{ t('terms_title') }}</h1><p class="legal-updated">{{ t('last_updated') }}</p><p>{{ t('terms_intro') }}</p>
+<h2>{{ t('public_beta') }}</h2><p>{{ t('public_beta_body') }}</p>
+<h2>{{ t('your_account') }}</h2><p>{{ t('your_account_body') }}</p>
+<h2>{{ t('your_fin_info') }}</h2><p>{{ t('your_fin_info_body') }}</p>
+<h2>{{ t('acceptable_use') }}</h2><p>{{ t('acceptable_use_body') }}</p>
+<h2>{{ t('premium_payments') }}</h2><p>{{ t('premium_payments_body') }}</p>
+<h2>{{ t('refund_policy') }}</h2><p><strong>{{ t('refund_title') }}</strong></p><p>{{ t('refund_short') }}</p><p>{{ t('refund_how') }}</p><p>{{ t('refund_after') }}</p><p><strong>{{ t('cancel_not_refund') }}</strong> {{ t('cancel_cycle') }}</p><p>{{ t('rights_body') }}</p>
+<h2>{{ t('no_warranties') }}</h2><p>{{ t('no_warranties_body') }}</p>
+<h2>{{ t('limitation') }}</h2><p>{{ t('limitation_body') }}</p>
+<h2>{{ t('contact') }}</h2><p>{{ t('terms_contact') }} <a href="mailto:{{ support_email or 'support.sigora@gmail.com' }}">{{ support_email or 'support.sigora@gmail.com' }}</a>.</p>
 </div>
 {% endblock %}

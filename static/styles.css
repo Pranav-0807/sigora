@@ -3339,3 +3339,33 @@ a {
 /* Keep positive/negative values semantically visible after the generic card overrides. */
 .holding-row-v2 .positive,.holding-popover .positive,.invest-stat .positive{color:#147847 !important;}
 .holding-row-v2 .negative,.holding-popover .negative,.invest-stat .negative{color:#b63838 !important;}
+
+/* SIGORA Investments V2 — final visibility fix (2026-09-02)
+   Keep headings and disclosure buttons readable on light investment surfaces. */
+.intelligence-card-v2 .section-heading h2,
+.intelligence-card-v2 .compact-heading h2,
+.intelligence-card-v2 h2 {
+  color:#171b18 !important;
+  opacity:1 !important;
+}
+.add-holding-details>summary {
+  color:#171b18 !important;
+  background:#ffffff !important;
+  border-color:#cfd6d0 !important;
+  opacity:1 !important;
+}
+.add-holding-details>summary:hover,
+.add-holding-details>summary:focus-visible {
+  color:#0d100e !important;
+  background:#f4f7f4 !important;
+}
+
+/* SIGORA Money Model V2 */
+.transaction-list-head-v2,.transaction-row-v2{grid-template-columns:110px minmax(180px,1.6fr) 110px minmax(150px,1fr) 130px 110px}
+.transaction-account-cell{min-width:0}.transaction-account-cell strong,.transaction-account-cell span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.transaction-type-pill.transfer{background:#eef1ef;color:#26312a;border:1px solid #d6ddd8}
+.trust-card,.trust-import{border-color:#cbd8cf}.trust-import p{margin:7px 0}.trust-import small{display:block;font-weight:650}
+.import-preview-v2 th,.import-preview-v2 td{vertical-align:top;white-space:nowrap}.import-preview-v2 td:nth-child(2){white-space:normal;min-width:220px}
+.import-review-pill{display:inline-block;padding:5px 8px;border-radius:999px;font-size:.78rem;font-weight:700;white-space:normal;max-width:250px}.import-review-pill.good{background:#edf5ef;color:#21492c}.import-review-pill.attention{background:#fff5dd;color:#684d0b}
+#cashOpening{margin:12px 0}#cashOpening label{margin-bottom:6px}
+@media(max-width:820px){.transaction-list-head-v2{display:none}.transaction-row-v2{grid-template-columns:1fr auto;gap:8px 12px}.transaction-row-v2>div,.transaction-row-v2>strong{min-width:0}.transaction-account-cell{grid-column:1/2}.transaction-row-v2 .card-actions{grid-column:2/3;grid-row:1/4}.transaction-amount-modern{grid-column:2/3}.form-row{grid-template-columns:1fr}}

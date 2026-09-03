@@ -1,17 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="legal-page">
-<span class="eyebrow">SUPPORT</span>
-<h1>We're here to help.</h1>
-<p>If something looks wrong, you find a bug, or you have a question about Sigora, contact us.</p>
-<div class="support-contact-card">
-  <span>EMAIL</span>
-  <a href="mailto:{{ support_email or 'support.sigora@gmail.com' }}">{{ support_email or 'support.sigora@gmail.com' }}</a>
-  <p>For account-specific help, email us from the address associated with your Sigora account when possible. Never send passwords, OTPs, card PINs, API keys, or full banking credentials.</p>
-</div>
-<h2>Account and data requests</h2>
-<p>You can manage many settings directly inside Sigora. Account deletion is available in Settings. If you cannot access your account or need help with a data request, email support.</p>
-<h2>Payments</h2>
-<p>Sigora Premium uses Razorpay for recurring subscription payments. You are charged only after you deliberately complete Razorpay checkout. You can request cancellation from the Premium page; cancellation is scheduled for the end of the current billing cycle. For billing problems, contact support from the email linked to your Sigora account.</p>
+<span class="eyebrow">{{ t('support_eyebrow') }}</span><h1>{{ t('support_title') }}</h1><p>{{ t('support_intro') }}</p>
+<div class="support-contact-card"><span>{{ t('email_label') }}</span><a href="mailto:{{ support_email or 'support.sigora@gmail.com' }}">{{ support_email or 'support.sigora@gmail.com' }}</a><p>{{ t('support_safe') }}</p></div>
+<h2>{{ t('account_data_requests') }}</h2><p>{{ t('account_data_body') }}</p>
+<h2>{{ t('payments') }}</h2><p>{{ t('payments_body') }}</p><p><strong>{{ t('refund_title') }}</strong> {{ t('refund_short') }}</p><p>{{ t('refund_how') }}</p><p>{{ t('refund_after') }}</p><p><strong>{{ t('cancel_not_refund') }}</strong> {{ t('cancel_cycle') }}</p>
 </div>
 {% endblock %}

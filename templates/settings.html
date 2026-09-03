@@ -52,9 +52,9 @@
 
         <section class="settings-card">
             <div class="settings-card-heading"><div><span class="settings-label">PREMIUM</span><h2>Sigora Premium</h2></div><span class="settings-icon">✦</span></div>
-            <p class="settings-muted">Launch price</p><div class="premium-price">{{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }}<span>/month</span></div>
-            <ul class="premium-mini-list">{% for name, text in premium_features[:5] %}<li><span>✓</span><div><strong>{{ name }}</strong><small>{{ text }}</small></div></li>{% endfor %}</ul>
-            <a href="/premium" class="premium-button">Explore Premium →</a>
+            <p class="settings-muted">{{ t('Launch price') }}</p><div class="premium-price">{{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }}<span>/{{ t('month') }}</span></div>
+            <ul class="premium-mini-list">{% for name, text in premium_features[:5] %}<li><span>✓</span><div><strong>{{ t(name) }}</strong><small>{{ t(text) }}</small></div></li>{% endfor %}</ul>
+            <a href="/premium" class="premium-button">{{ t('Explore Premium →') }}</a>
         </section>
 
         <section class="settings-card">

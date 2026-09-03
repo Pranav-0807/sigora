@@ -1,30 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="legal-page">
-<span class="eyebrow">LEGAL</span>
-<h1>Privacy Policy</h1>
-<p class="legal-updated">Last updated: 25 August 2026</p>
-<p>Sigora is a personal-finance software platform. This policy explains how we handle information when you create an account and use Sigora.</p>
-
-<h2>Information we collect</h2>
-<p>Depending on the features you use, Sigora may process your account details, settings, transactions, budgets, goals, imported statements, investment-tracking information, support messages, and technical usage information. If you connect supported financial-data services in the future, data made available through your authorised consent may also be processed.</p>
-
-<h2>How we use information</h2>
-<p>We use information to provide and secure your account, calculate budgets and reports, generate financial insights, prevent duplicate imports, improve product reliability, respond to support requests, and operate optional features you choose to use.</p>
-
-<h2>AI features</h2>
-<p>When you use AI Insights, relevant financial context may be sent to our configured AI service provider to generate the requested explanation. Sigora is designed to minimise the information sent to what is needed for the feature. Do not enter passwords, OTPs, card PINs, or other authentication secrets into AI prompts or support messages.</p>
-
-<h2>Analytics and service providers</h2>
-<p>We may use service providers for cloud hosting, databases, analytics, email, AI processing, market-data retrieval, and payments. These providers process information as needed to deliver their services. Google Analytics may collect usage and device information according to Google's own terms and controls.</p>
-
-<h2>Security and retention</h2>
-<p>We use reasonable technical and organisational safeguards, but no online service can guarantee absolute security. We retain information for as long as needed to provide the service, meet legitimate operational needs, resolve disputes, and comply with applicable legal obligations.</p>
-
-<h2>Your choices</h2>
-<p>You can update certain account information in Settings and may delete your Sigora account using the account-deletion control. You may also contact us to ask questions about your data or request assistance with access, correction, or deletion, subject to applicable legal retention requirements.</p>
-
-<h2>Contact</h2>
-<p>For privacy questions, contact <a href="mailto:{{ support_email or 'support.sigora@gmail.com' }}">{{ support_email or 'support.sigora@gmail.com' }}</a>.</p>
+<span class="eyebrow">{{ t('legal') }}</span><h1>{{ t('privacy_policy') }}</h1><p class="legal-updated">{{ t('last_updated') }}</p><p>{{ t('privacy_intro') }}</p>
+<h2>{{ t('info_collect') }}</h2><p>{{ t('info_collect_body') }}</p>
+<h2>{{ t('how_use') }}</h2><p>{{ t('how_use_body') }}</p>
+<h2>{{ t('ai_features_legal') }}</h2><p>{{ t('ai_features_body') }}</p>
+<h2>{{ t('analytics_providers') }}</h2><p>{{ t('analytics_body') }}</p>
+<h2>{{ t('security_retention') }}</h2><p>{{ t('security_body') }}</p>
+<h2>{{ t('your_choices') }}</h2><p>{{ t('choices_body') }}</p>
+<h2>{{ t('contact') }}</h2><p>{{ t('privacy_contact') }} <a href="mailto:{{ support_email or 'support.sigora@gmail.com' }}">{{ support_email or 'support.sigora@gmail.com' }}</a>.</p>
 </div>
 {% endblock %}

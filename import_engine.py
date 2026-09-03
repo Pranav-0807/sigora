@@ -238,6 +238,22 @@ def read_statement(fileobj,filename,password=None):
     raise ValueError("Unsupported file type. Use PDF, CSV/TSV/TXT, XLSX/XLS, OFX or QFX.")
 
 
+
+def classify_statement_movement(description, transaction_type, category):
+    """Conservative import semantics. Only obvious non-spend money movements become transfers."""
+    text=" ".join(str(description or "").lower().split())
+    if transaction_type == "expense":
+        if any(k in text for k in ("credit card payment","card payment","cc payment","creditcard payment")):
+            return "transfer_out", "Transfer", "credit_card_payment", "high"
+        if any(k in text for k in ("atm withdrawal","cash withdrawal","atm cash")):
+            return "transfer_out", "Transfer", "cash_withdrawal", "high"
+        if any(k in text for k in ("self transfer","own account transfer","to own account")):
+            return "transfer_out", "Transfer", "self_transfer", "high"
+    if transaction_type == "income" and any(k in text for k in ("self transfer","own account transfer","from own account")):
+        return "transfer_in", "Transfer", "self_transfer", "high"
+    return transaction_type, category, None, "normal"
+
+
 def normalize_rows(rows,columns,categorize):
     date_col=find_col(columns,DATE_ALIASES,DATE_HINTS); desc_col=find_col(columns,DESC_ALIASES,DESC_HINTS)
     amount_col=find_col(columns,AMOUNT_ALIASES,("amount","transaction amount")); debit_col=find_col(columns,DEBIT_ALIASES,("debit","withdraw","dr")); credit_col=find_col(columns,CREDIT_ALIASES,("credit","deposit","cr"))
@@ -261,7 +277,8 @@ def normalize_rows(rows,columns,categorize):
                 amt=clean_amount(row.get(amount_col))
             if amt==0: raise ValueError("amount is zero")
             tx_type="income" if amt>0 else "expense"; amount=abs(round(amt,2)); category=categorize(desc,tx_type)
-            normalized.append({"date":d,"description":desc,"transaction_type":tx_type,"amount":amount,"category":category})
+            tx_type,category,review_reason,confidence=classify_statement_movement(desc,tx_type,category)
+            normalized.append({"date":d,"description":desc,"transaction_type":tx_type,"amount":amount,"category":category,"review_reason":review_reason,"confidence":confidence})
         except Exception as e: errors.append(f"Row {idx}: {e}")
     if not normalized and errors: raise ValueError("No valid transactions could be extracted. Please check the statement format.")
     return normalized,errors

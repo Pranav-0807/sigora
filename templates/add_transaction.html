@@ -1,16 +1,43 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="form-page">
-    <div class="form-page-header"><span class="eyebrow">MONEY MOVEMENT</span><h1>Add transaction</h1><p>Record it once. Sigora handles the rest.</p></div>
-    {% if error %}<div class="settings-message error">{{ error }}</div>{% endif %}
-    <form method="POST" class="modern-form-card">
-        <label>Transaction type<select name="transaction_type"><option value="income">Income</option><option value="expense" selected>Expense</option></select></label>
-        <label>Amount<input type="number" name="amount" step="0.01" min="0.01" required></label>
-        <label>Category <span class="field-hint">Leave as Auto to let Sigora decide</span><input type="text" name="category" placeholder="Auto-categorize"></label>
-        <label>Description<input type="text" name="description" placeholder="e.g. Swiggy, salary, rent" required></label>
-        <label>Date<input type="date" name="date" required></label>
-        <label>{{ t('Payment account') }} <span class="field-hint">{{ t('Choose the account this money moved through.') }}</span><select name="financial_account_id"><option value="">{{ t('Cash / unassigned') }}</option>{% for a in accounts %}<option value="{{ a.id }}">{{ a.account_name or a.institution_name }} · {{ a.institution_name }}{% if a.masked_account %} · •••• {{ a.masked_account[-4:] }}{% endif %}</option>{% endfor %}</select></label>
-        <div class="form-actions"><button class="hero-button" type="submit">Add transaction</button><a class="secondary-button" href="/transactions">Cancel</a></div>
-    </form>
+  <div class="form-page-header"><span class="eyebrow">{{ t('money_movement') }}</span><h1>{{ t('add_transaction') }}</h1><p>{{ t('record_once') }}</p></div>
+  {% if error %}<div class="settings-message error">{{ error }}</div>{% endif %}
+  <form method="POST" class="modern-form-card" id="moneyForm">
+    <label>{{ t('transaction_type') }}<select name="transaction_type" id="txType"><option value="income">{{ t('income') }}</option><option value="expense" selected>{{ t('expense') }}</option><option value="transfer">{{ t('transfer') }}</option></select></label>
+    <label>{{ t('amount') }}<input type="number" name="amount" step="0.01" min="0.01" required></label>
+    <div id="normalFields">
+      <label>{{ t('category') }} <span class="field-hint">{{ t('Leave as Auto to let Sigora decide') }}</span><input type="text" name="category" placeholder="{{ t('Auto-categorize') }}"></label>
+    </div>
+    <label>{{ t('description') }}<input type="text" name="description" placeholder="{{ t('e.g. Swiggy, salary, rent') }}" required></label>
+    <label>{{ t('date') }}<input type="date" name="date" required></label>
+
+    <div id="accountField">
+      <label><span id="accountLabel">{{ t('paid_from') }}</span> <span class="field-hint">{{ t('Choose the account this money moved through.') }}</span>
+        <select name="financial_account_id" id="accountSelect">
+          <option value="">{{ t('not_linked') }}</option>
+          {% if cash_account %}<option value="{{ cash_account.id }}">💵 {{ t('physical_cash') }}</option>{% else %}<option value="__cash__">💵 {{ t('physical_cash') }}</option>{% endif %}
+          {% for a in accounts if a.account_type != 'cash' %}<option value="{{ a.id }}">{% if a.account_type=='credit_card' %}💳{% elif a.account_type=='wallet' %}👛{% else %}🏦{% endif %} {{ a.account_name or a.institution_name }}{% if a.masked_account %} · •••• {{ a.masked_account[-4:] }}{% endif %}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <div id="transferFields" hidden>
+      <p class="settings-muted">{{ t('transfer_help') }}</p>
+      <div class="form-row">
+        <label>{{ t('from_account') }}<select name="from_account_id"><option value="">—</option>{% if cash_account %}<option value="{{ cash_account.id }}">💵 {{ t('physical_cash') }}</option>{% else %}<option value="__cash__">💵 {{ t('physical_cash') }}</option>{% endif %}{% for a in accounts if a.account_type != 'cash' %}<option value="{{ a.id }}">{{ a.account_name or a.institution_name }}</option>{% endfor %}</select></label>
+        <label>{{ t('to_account') }}<select name="to_account_id"><option value="">—</option>{% if cash_account %}<option value="{{ cash_account.id }}">💵 {{ t('physical_cash') }}</option>{% else %}<option value="__cash__">💵 {{ t('physical_cash') }}</option>{% endif %}{% for a in accounts if a.account_type != 'cash' %}<option value="{{ a.id }}">{{ a.account_name or a.institution_name }}</option>{% endfor %}</select></label>
+      </div>
+    </div>
+
+    {% if not cash_account %}<div id="cashOpening" class="settings-message" hidden><label>{{ t('physical_cash_first') }}<input name="cash_opening_balance" inputmode="decimal" placeholder="0.00"></label><small>{{ t('physical_cash_first_help') }}</small></div>{% endif %}
+    <div class="form-actions"><button class="hero-button" type="submit">{{ t('add_transaction') }}</button><a class="secondary-button" href="/transactions">{{ t('Cancel') }}</a></div>
+  </form>
 </div>
+<script>
+const type=document.getElementById('txType'), normal=document.getElementById('normalFields'), account=document.getElementById('accountField'), transfer=document.getElementById('transferFields'), label=document.getElementById('accountLabel');
+function refresh(){const v=type.value; normal.hidden=v==='transfer'; account.hidden=v==='transfer'; transfer.hidden=v!=='transfer'; label.textContent=v==='income'?{{ t('received_into')|tojson }}:{{ t('paid_from')|tojson }}; refreshCash();}
+function refreshCash(){const box=document.getElementById('cashOpening'); if(!box)return; const vals=[document.getElementById('accountSelect')?.value,...Array.from(transfer.querySelectorAll('select')).map(x=>x.value)]; box.hidden=!vals.includes('__cash__');}
+type.addEventListener('change',refresh); document.querySelectorAll('select').forEach(x=>x.addEventListener('change',refreshCash)); refresh();
+</script>
 {% endblock %}
