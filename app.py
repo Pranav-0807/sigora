@@ -4,6 +4,7 @@ from ai_insights import(get_ai_insights,
                         get_budget_ai_insight,
                         get_dashboard_ai_insight,
                         get_investment_ai_insight,
+                        parse_what_if_question,
                     )
 import os
 import math
@@ -441,6 +442,47 @@ _LEGAL_PAGES_I18N = {
 'hi': {'legal': 'कानूनी', 'important': 'महत्वपूर्ण', 'last_updated': 'अंतिम अपडेट: 3 सितंबर 2026', 'privacy_policy': 'प्राइवेसी पॉलिसी', 'privacy_intro': 'SIGORA एक पर्सनल-फाइनेंस सॉफ्टवेयर प्लेटफ़ॉर्म है। यह नीति बताती है कि खाता बनाते और SIGORA का उपयोग करते समय हम जानकारी को कैसे संभालते हैं।', 'info_collect': 'हम कौन-सी जानकारी प्रोसेस करते हैं', 'info_collect_body': 'आपके उपयोग किए गए फीचर्स के आधार पर SIGORA आपके खाते की जानकारी, सेटिंग्स, लेन-देन, बजट, लक्ष्य, इम्पोर्ट किए गए स्टेटमेंट, निवेश-ट्रैकिंग जानकारी, सहायता संदेश और तकनीकी उपयोग जानकारी प्रोसेस कर सकता है। भविष्य में समर्थित वित्तीय-डेटा सेवाएं जोड़ने पर, आपकी अधिकृत सहमति से उपलब्ध डेटा भी प्रोसेस किया जा सकता है।', 'how_use': 'हम जानकारी का उपयोग कैसे करते हैं', 'how_use_body': 'हम जानकारी का उपयोग आपका खाता उपलब्ध कराने और सुरक्षित रखने, बजट और रिपोर्ट की गणना, वित्तीय इनसाइट बनाने, डुप्लिकेट इम्पोर्ट रोकने, उत्पाद की विश्वसनीयता सुधारने, सहायता अनुरोधों का जवाब देने और आपके चुने वैकल्पिक फीचर्स चलाने के लिए करते हैं।', 'ai_features_legal': 'AI फीचर्स', 'ai_features_body': 'AI Insights का उपयोग करते समय, मांगी गई व्याख्या बनाने के लिए जरूरी वित्तीय संदर्भ हमारे कॉन्फ़िगर किए गए AI सेवा प्रदाता को भेजा जा सकता है। SIGORA को फीचर के लिए जरूरी जानकारी तक ही डेटा सीमित रखने के लिए डिज़ाइन किया गया है। AI प्रॉम्प्ट या सहायता संदेश में पासवर्ड, OTP, कार्ड PIN या अन्य प्रमाणीकरण रहस्य न डालें।', 'analytics_providers': 'एनालिटिक्स और सेवा प्रदाता', 'analytics_body': 'हम क्लाउड होस्टिंग, डेटाबेस, एनालिटिक्स, ईमेल, AI प्रोसेसिंग, मार्केट डेटा और भुगतान के लिए सेवा प्रदाताओं का उपयोग कर सकते हैं। वे अपनी सेवाएं देने के लिए आवश्यक जानकारी प्रोसेस करते हैं। Google Analytics, Google की अपनी शर्तों और नियंत्रणों के अनुसार उपयोग और डिवाइस जानकारी एकत्र कर सकता है।', 'security_retention': 'सुरक्षा और डेटा रिटेंशन', 'security_body': 'हम उचित तकनीकी और संगठनात्मक सुरक्षा उपाय अपनाते हैं, लेकिन कोई भी ऑनलाइन सेवा पूर्ण सुरक्षा की गारंटी नहीं दे सकती। सेवा देने, वैध संचालन जरूरतें पूरी करने, विवाद सुलझाने और लागू कानूनी दायित्वों का पालन करने के लिए आवश्यक अवधि तक जानकारी रखी जाती है।', 'your_choices': 'आपके विकल्प', 'choices_body': 'आप Settings में कुछ खाता जानकारी अपडेट कर सकते हैं और account-deletion control से अपना SIGORA खाता हटा सकते हैं। लागू कानूनी डेटा-रिटेंशन आवश्यकताओं के अधीन, डेटा एक्सेस, सुधार या हटाने में सहायता के लिए भी हमसे संपर्क कर सकते हैं।', 'contact': 'संपर्क', 'privacy_contact': 'प्राइवेसी से जुड़े सवालों के लिए संपर्क करें', 'fin_disclaimer_title': 'वित्तीय और निवेश अस्वीकरण', 'fin_disclaimer_intro': 'SIGORA एक पर्सनल-फाइनेंस सॉफ्टवेयर और शैक्षिक एनालिटिक्स प्लेटफ़ॉर्म है। यह पंजीकृत निवेश सलाहकार, ब्रोकर, ऋणदाता, बैंक, टैक्स सलाहकार या कानूनी सलाहकार नहीं है।', 'education_only': 'केवल शैक्षिक जानकारी', 'education_body': 'एसेट-क्लास उदाहरण, जोखिम व्याख्याएं, आवंटन उदाहरण, प्रोजेक्शन, AI द्वारा बनाई गई व्याख्याएं, मार्केट चार्ट और वित्तीय-स्वास्थ्य संकेत केवल शिक्षा और सामान्य जानकारी के लिए हैं। ये किसी नामित सिक्योरिटी या वित्तीय उत्पाद को खरीदने, बेचने, रखने या उसमें पैसा लगाने की व्यक्तिगत सलाह नहीं हैं।', 'market_projection': 'मार्केट डेटा और प्रोजेक्शन', 'market_projection_body': 'कीमतें, प्रतिशत बदलाव, ऐतिहासिक चार्ट और थर्ड-पार्टी मार्केट जानकारी देर से, अधूरी या अस्थायी रूप से अनुपलब्ध हो सकती है। प्रोजेक्शन टूल उपयोगकर्ता द्वारा चुनी गई मान्यताओं पर आधारित गणितीय उदाहरण हैं; वे पूर्वानुमान, गारंटी या वादा किए गए रिटर्न नहीं हैं।', 'investment_risk': 'निवेश जोखिम', 'investment_risk_body': 'निवेश का मूल्य बढ़ या घट सकता है और आपको नुकसान हो सकता है। पिछला प्रदर्शन भविष्य के परिणामों की गारंटी नहीं देता। जोखिम, टैक्स, फीस, लिक्विडिटी और उपयुक्तता व्यक्ति और उत्पाद के अनुसार बदलती है।', 'your_decisions': 'आपके निर्णय', 'decisions_body': 'जानकारी का मूल्यांकन करना और अपने वित्तीय निर्णय लेना आपकी जिम्मेदारी है। अपनी परिस्थितियों के अनुसार सलाह के लिए उचित रूप से योग्य या विनियमित पेशेवर से संपर्क करने पर विचार करें।', 'support_eyebrow': 'सहायता', 'support_title': 'हम आपकी मदद के लिए यहां हैं।', 'support_intro': 'अगर कुछ गलत लगे, कोई बग मिले या SIGORA के बारे में सवाल हो, तो हमसे संपर्क करें।', 'email_label': 'ईमेल', 'support_safe': 'खाता-विशिष्ट सहायता के लिए, संभव हो तो अपने SIGORA खाते से जुड़े ईमेल से लिखें। पासवर्ड, OTP, कार्ड PIN, API keys या पूरे बैंकिंग क्रेडेंशियल कभी न भेजें।', 'account_data_requests': 'खाता और डेटा अनुरोध', 'account_data_body': 'कई सेटिंग्स सीधे SIGORA में प्रबंधित की जा सकती हैं। Settings में खाता हटाने का विकल्प उपलब्ध है। अगर आप खाते तक नहीं पहुंच पा रहे हैं या डेटा अनुरोध में मदद चाहिए, तो सहायता को ईमेल करें।', 'payments': 'भुगतान', 'payments_body': 'SIGORA Premium आवर्ती सब्सक्रिप्शन भुगतान के लिए Razorpay का उपयोग करता है। Razorpay checkout को जानबूझकर पूरा करने के बाद ही आपसे शुल्क लिया जाता है।', 'terms_title': 'सेवा की शर्तें', 'terms_intro': 'ये शर्तें SIGORA के आपके उपयोग को नियंत्रित करती हैं। सेवा का उपयोग करके आप इसे कानूनी और जिम्मेदार तरीके से उपयोग करने के लिए सहमत होते हैं।', 'public_beta': 'पब्लिक बीटा', 'public_beta_body': 'SIGORA अभी public-beta उत्पाद है। सेवा के विकसित होने के साथ फीचर्स, सीमाएं, इंटीग्रेशन, कीमत और उपलब्धता बदल सकती है। उचित आवश्यकता होने पर हम beta फीचर्स को बदल, रोक या बंद कर सकते हैं।', 'your_account': 'आपका खाता', 'your_account_body': 'अपने लॉगिन क्रेडेंशियल सुरक्षित रखना और अपने खाते से होने वाली गतिविधि की जिम्मेदारी आपकी है। सही जानकारी दें और किसी अन्य व्यक्ति के खाते तक पहुंचने या सेवा सुरक्षा को बायपास करने की कोशिश न करें।', 'your_fin_info': 'आपकी वित्तीय जानकारी', 'your_fin_info_body': 'SIGORA में जो जानकारी आप जोड़ते या इम्पोर्ट करते हैं, उस पर आपका नियंत्रण है। इम्पोर्ट किए गए लेन-देन, बैलेंस, गणनाएं, मार्केट जानकारी और बनाई गई इनसाइट पर भरोसा करने से पहले उनकी समीक्षा करें। SIGORA में त्रुटियां, देरी या अधूरा डेटा हो सकता है।', 'acceptable_use': 'स्वीकार्य उपयोग', 'acceptable_use_body': 'SIGORA का दुरुपयोग न करें, सेवा में बाधा न डालें, सुरक्षा कमजोरियों को जांचने या उनका फायदा उठाने की कोशिश न करें, दुरुपयोग वाला ऑटोमेटेड ट्रैफिक या हानिकारक सामग्री न भेजें और प्लेटफ़ॉर्म का गैरकानूनी गतिविधि के लिए उपयोग न करें।', 'premium_payments': 'Premium और भुगतान', 'premium_payments_body': 'SIGORA Razorpay जैसे थर्ड-पार्टी भुगतान प्रोसेसर के माध्यम से भुगतान वाले Premium सब्सक्रिप्शन दे सकता है। Checkout पर दिखाई गई कीमत और billing cycle आपकी खरीद पर लागू होती है। रद्द या अन्यथा समाप्त होने तक चुने गए billing cycle के अनुसार सब्सक्रिप्शन रिन्यू होता है। भुगतान प्रोसेसिंग, mandates, refunds और settlement में भुगतान प्रदाता शामिल हो सकता है।', 'rights_body': 'इन शर्तों में ऐसा कुछ भी नहीं है जो कानूनन सीमित न किए जा सकने वाले refund, chargeback, cancellation या consumer rights को सीमित करे।', 'no_warranties': 'कोई वारंटी नहीं', 'no_warranties_body': 'Beta के दौरान SIGORA “जैसा उपलब्ध है” आधार पर दिया जाता है। कानून द्वारा अनुमत सीमा तक हम बिना रुकावट उपलब्धता, त्रुटिरहित गणनाओं, निवेश परिणामों या थर्ड-पार्टी इंटीग्रेशन के हमेशा उपलब्ध रहने की गारंटी नहीं देते।', 'limitation': 'सीमा और जिम्मेदारी', 'limitation_body': 'SIGORA के माध्यम से उपलब्ध जानकारी का उपयोग करके लिए गए वित्तीय निर्णयों की जिम्मेदारी आपकी रहती है। ये शर्तें उन अधिकारों या दायित्वों को बाहर नहीं करतीं जिन्हें कानूनन बाहर नहीं किया जा सकता।', 'terms_contact': 'इन शर्तों के बारे में सवाल भेजें'},
 }
 for _lang, _items in _LEGAL_PAGES_I18N.items():
+    SIGORA_TRANSLATIONS.setdefault(_lang, {}).update(_items)
+    SIGORA_PHRASE_TRANSLATIONS.setdefault(_lang, {}).update(_items)
+
+# What-If V2 visible language coverage. Financial maths is language-independent.
+_WHAT_IF_V2_I18N = {
+    "ta": {
+        "Ask Sigora about a financial decision":"ஒரு நிதி முடிவைப் பற்றி SIGORA-விடம் கேளுங்கள்",
+        "Ask naturally — Sigora will work out the financial mechanics.":"இயல்பாகக் கேளுங்கள் — நிதிக் கணக்குகளை SIGORA பார்த்துக்கொள்ளும்.",
+        "Will I be able to buy an iPhone?":"நான் ஒரு iPhone வாங்க முடியுமா?",
+        "Ask Sigora →":"SIGORA-விடம் கேள் →", "What price are you expecting to pay?":"நீங்கள் எவ்வளவு விலையில் வாங்க திட்டமிட்டுள்ளீர்கள்?",
+        "Expected price":"எதிர்பார்க்கும் விலை", "Continue simulation →":"சிமுலேஷனைத் தொடரவும் →",
+        "SIGORA VERDICT":"SIGORA முடிவு", "Looks manageable":"சமாளிக்கக்கூடியதாக தெரிகிறது", "Proceed with caution":"கவனமாக முடிவு செய்யுங்கள்",
+        "High impact on your buffer":"உங்கள் நிதி இருப்பில் அதிக தாக்கம்", "Not enough data yet":"இன்னும் போதுமான தரவு இல்லை",
+        "Recorded buffer now":"தற்போதைய பதிவு செய்யப்பட்ட இருப்பு", "After this decision":"இந்த முடிவுக்குப் பிறகு", "Buffer used":"பயன்படும் இருப்பு",
+        "Recent monthly savings pace":"சமீபத்திய மாத சேமிப்பு வேகம்", "Estimated recovery time":"மீட்பு கால மதிப்பீடு", "months":"மாதங்கள்",
+        "Goal in view":"கவனத்தில் உள்ள இலக்கு", "Why Sigora says this":"SIGORA ஏன் இதைச் சொல்கிறது",
+        "This fits inside your recorded savings buffer.":"இது உங்கள் பதிவு செய்யப்பட்ட சேமிப்பு இருப்புக்குள் வருகிறது.",
+        "This would use a large share of your recorded savings buffer.":"இது உங்கள் பதிவு செய்யப்பட்ட சேமிப்பு இருப்பின் பெரிய பகுதியைப் பயன்படுத்தும்.",
+        "This is larger than your currently recorded savings buffer.":"இது தற்போது பதிவு செய்யப்பட்ட சேமிப்பு இருப்பை விட அதிகம்.",
+        "Add more transaction history before relying on this simulation.":"இந்த சிமுலேஷனை நம்புவதற்கு முன் மேலும் பரிவர்த்தனை வரலாற்றைச் சேர்க்கவும்.",
+        "AI interprets your question. Sigora's recorded financial data does the calculation.":"AI உங்கள் கேள்வியைப் புரிந்துகொள்கிறது. கணக்கை SIGORA-வில் பதிவு செய்யப்பட்ட நிதித் தரவு செய்கிறது."
+    },
+    "hi": {
+        "Ask Sigora about a financial decision":"किसी वित्तीय फैसले के बारे में SIGORA से पूछें",
+        "Ask naturally — Sigora will work out the financial mechanics.":"स्वाभाविक रूप से पूछें — वित्तीय गणना SIGORA संभालेगा।",
+        "Will I be able to buy an iPhone?":"क्या मैं iPhone खरीद पाऊंगा?",
+        "Ask Sigora →":"SIGORA से पूछें →", "What price are you expecting to pay?":"आप कितनी कीमत चुकाने की उम्मीद कर रहे हैं?",
+        "Expected price":"अपेक्षित कीमत", "Continue simulation →":"सिमुलेशन जारी रखें →",
+        "SIGORA VERDICT":"SIGORA निष्कर्ष", "Looks manageable":"संभव लगता है", "Proceed with caution":"सावधानी से आगे बढ़ें",
+        "High impact on your buffer":"आपके वित्तीय बफर पर बड़ा असर", "Not enough data yet":"अभी पर्याप्त डेटा नहीं है",
+        "Recorded buffer now":"अभी दर्ज बफर", "After this decision":"इस फैसले के बाद", "Buffer used":"बफर का उपयोग",
+        "Recent monthly savings pace":"हाल की मासिक बचत गति", "Estimated recovery time":"अनुमानित रिकवरी समय", "months":"महीने",
+        "Goal in view":"ध्यान में लक्ष्य", "Why Sigora says this":"SIGORA ऐसा क्यों कहता है",
+        "This fits inside your recorded savings buffer.":"यह आपके दर्ज बचत बफर के भीतर है।",
+        "This would use a large share of your recorded savings buffer.":"यह आपके दर्ज बचत बफर का बड़ा हिस्सा इस्तेमाल करेगा।",
+        "This is larger than your currently recorded savings buffer.":"यह आपके वर्तमान दर्ज बचत बफर से बड़ा है।",
+        "Add more transaction history before relying on this simulation.":"इस सिमुलेशन पर भरोसा करने से पहले और लेन-देन इतिहास जोड़ें।",
+        "AI interprets your question. Sigora's recorded financial data does the calculation.":"AI आपके सवाल को समझता है। गणना SIGORA में दर्ज वित्तीय डेटा करता है।"
+    }
+}
+for _lang, _items in _WHAT_IF_V2_I18N.items():
     SIGORA_TRANSLATIONS.setdefault(_lang, {}).update(_items)
     SIGORA_PHRASE_TRANSLATIONS.setdefault(_lang, {}).update(_items)
 
@@ -2552,15 +2594,28 @@ def intelligence():
     goals_data = get_goals(user["id"])
     result = build_intelligence(context, budgets_data, goals_data)
     simulation = None
+    what_if_question = ""
+    what_if_followup = None
     if request.method == "POST":
         if not status["is_premium"]:
             return redirect("/premium")
-        try:
-            amount = float(request.form.get("purchase_amount", "0"))
-        except ValueError:
-            amount = 0
-        simulation = simulate_purchase(context, amount, goals_data)
-    return render_template("intelligence.html", intelligence=result, simulation=simulation, is_premium=status["is_premium"])
+        what_if_question = request.form.get("what_if_question", "").strip()
+        supplied_amount = request.form.get("what_if_amount", "").strip()
+        parsed = run_limited_ai(user["id"], parse_what_if_question, what_if_question, _sigora_language())
+        if isinstance(parsed, str):
+            what_if_followup = parsed
+        else:
+            amount = parsed.get("amount")
+            if supplied_amount:
+                try:
+                    amount = float(supplied_amount)
+                except ValueError:
+                    amount = None
+            if not amount:
+                what_if_followup = "price"
+            else:
+                simulation = simulate_purchase(context, amount, goals_data, parsed.get("subject"), parsed.get("timeframe"))
+    return render_template("intelligence.html", intelligence=result, simulation=simulation, is_premium=status["is_premium"], what_if_question=what_if_question, what_if_followup=what_if_followup)
 
 @app.route("/premium")
 def premium():

@@ -162,8 +162,8 @@ def _headline(score, risks, projected_savings, has_financial_activity=True, sign
     return "Your finances are stable enough to improve with a few focused moves."
 
 
-def simulate_purchase(context, amount, goals=None):
-    """Simple, explainable what-if simulation using recorded cash flow only."""
+def simulate_purchase(context, amount, goals=None, subject=None, timeframe=None):
+    """Explainable affordability simulation using only recorded Sigora data."""
     amount = max(_f(amount), 0)
     overall = context.get("overall") or {}
     history = context.get("monthly_savings_history") or []
@@ -171,10 +171,13 @@ def simulate_purchase(context, amount, goals=None):
     total_expense = _f(overall.get("total_expense"))
     has_activity = bool(history) or total_income > 0 or total_expense > 0
     current_savings = _f(overall.get("savings"))
-    recent_positive = [_f(m.get("savings")) for m in history[-3:] if _f(m.get("savings")) > 0]
-    avg_monthly_savings = sum(recent_positive) / len(recent_positive) if recent_positive else 0
+    recent = [_f(m.get("savings")) for m in history[-3:]]
+    avg_monthly_savings = sum(recent) / len(recent) if recent else 0
+    positive_pace = avg_monthly_savings if avg_monthly_savings > 0 else 0
     post_buffer = current_savings - amount
-    delay_days = round(amount / avg_monthly_savings * 30) if avg_monthly_savings > 0 else None
+    buffer_used_pct = (amount / current_savings * 100) if current_savings > 0 else None
+    recovery_months = (amount / positive_pace) if positive_pace > 0 else None
+
     goal_name = None
     if goals:
         incomplete = [g for g in goals if _f(g.get("current_amount")) < _f(g.get("target_amount"))]
@@ -182,24 +185,21 @@ def simulate_purchase(context, amount, goals=None):
             goal_name = incomplete[0].get("name")
 
     if not has_activity:
-        verdict = "Not enough recorded financial history to run a meaningful simulation yet."
-        ready = False
+        level, ready = "insufficient", False
     elif amount <= 0:
-        verdict = "Enter a purchase amount greater than zero."
-        ready = False
-    elif post_buffer >= 0:
-        verdict = "The purchase fits within your recorded cumulative savings, but it still reduces your financial buffer."
-        ready = True
+        level, ready = "missing_amount", False
+    elif current_savings <= 0 or post_buffer < 0:
+        level, ready = "high", True
+    elif buffer_used_pct is not None and buffer_used_pct >= 50:
+        level, ready = "caution", True
     else:
-        verdict = "The purchase is larger than your currently recorded savings buffer."
-        ready = True
+        level, ready = "comfortable", True
 
     return {
-        "amount": amount,
-        "post_buffer": round(post_buffer, 2),
+        "amount": round(amount, 2), "subject": subject or "this decision", "timeframe": timeframe,
+        "current_buffer": round(current_savings, 2), "post_buffer": round(post_buffer, 2),
+        "buffer_used_pct": round(buffer_used_pct, 1) if buffer_used_pct is not None else None,
         "avg_monthly_savings": round(avg_monthly_savings, 2),
-        "estimated_delay_days": delay_days,
-        "goal_name": goal_name,
-        "verdict": verdict,
-        "ready": ready,
+        "recovery_months": round(recovery_months, 1) if recovery_months is not None else None,
+        "goal_name": goal_name, "level": level, "ready": ready,
     }

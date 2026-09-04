@@ -56,16 +56,62 @@
   </div>
   {% endif %}
 
-  <div class="premium-cta">
-    <div><span class="eyebrow">WHAT-IF SIMULATOR · PREMIUM</span><h2>Can I afford this decision?</h2><p>Model a planned purchase against your recorded savings and goals.</p></div>
+  <div class="premium-cta what-if-v2">
+    <div>
+      <span class="eyebrow">WHAT-IF V2 · PREMIUM</span>
+      <h2>{{ t('Ask Sigora about a financial decision') }}</h2>
+      <p>{{ t('Ask naturally — Sigora will work out the financial mechanics.') }}</p>
+    </div>
     {% if is_premium and intelligence.has_financial_activity %}
-    <form method="POST" class="settings-form"><input type="number" min="0.01" step="0.01" name="purchase_amount" placeholder="Purchase amount" required><button class="premium-button" type="submit">Simulate →</button></form>
-    {% elif not is_premium %}<a class="premium-button" href="/premium">Unlock simulator</a>
-    {% else %}<a class="secondary-button" href="/add-transaction">Add financial data first</a>{% endif %}
+      {% if what_if_followup == 'price' %}
+      <form method="POST" class="settings-form what-if-question-form">
+        <input type="hidden" name="what_if_question" value="{{ what_if_question }}">
+        <label><strong>{{ t('What price are you expecting to pay?') }}</strong>
+          <input type="number" min="0.01" step="0.01" name="what_if_amount" placeholder="{{ t('Expected price') }}" required autofocus>
+        </label>
+        <button class="premium-button" type="submit">{{ t('Continue simulation →') }}</button>
+      </form>
+      {% else %}
+      <form method="POST" class="settings-form what-if-question-form">
+        <textarea name="what_if_question" rows="3" maxlength="500" placeholder="{{ t('Will I be able to buy an iPhone?') }}" required>{{ what_if_question }}</textarea>
+        <button class="premium-button" type="submit">{{ t('Ask Sigora →') }}</button>
+      </form>
+      {% endif %}
+    {% elif not is_premium %}<a class="premium-button" href="/premium">{{ t('Unlock simulator') }}</a>
+    {% else %}<a class="secondary-button" href="/add-transaction">{{ t('Add financial data first') }}</a>{% endif %}
   </div>
-  {% if simulation %}
-  <div class="premium-usage-card"><div><span class="eyebrow">SIMULATION RESULT</span><h2>{{ simulation.verdict }}</h2>{% if simulation.ready %}<p class="settings-muted">Post-purchase recorded buffer: {{ currency_symbol }}{{ '%.2f'|format(simulation.post_buffer) }}{% if simulation.estimated_delay_days is not none %} · Equivalent to ~{{ simulation.estimated_delay_days }} days of your recent positive savings pace{% endif %}{% if simulation.goal_name %} · Goal in view: {{ simulation.goal_name }}{% endif %}</p>{% endif %}</div></div>
+
+  {% if what_if_followup and what_if_followup != 'price' %}
+  <div class="premium-usage-card"><p>{{ what_if_followup }}</p></div>
   {% endif %}
+
+  {% if simulation %}
+  <div class="premium-usage-card what-if-result">
+    <div>
+      <span class="eyebrow">{{ t('SIGORA VERDICT') }}</span>
+      {% if simulation.level == 'comfortable' %}<h2>🟢 {{ t('Looks manageable') }}</h2>
+      {% elif simulation.level == 'caution' %}<h2>🟡 {{ t('Proceed with caution') }}</h2>
+      {% elif simulation.level == 'high' %}<h2>🔴 {{ t('High impact on your buffer') }}</h2>
+      {% else %}<h2>{{ t('Not enough data yet') }}</h2>{% endif %}
+      <p><strong>{{ simulation.subject }}</strong>{% if simulation.timeframe %} · {{ simulation.timeframe }}{% endif %}</p>
+    </div>
+    {% if simulation.ready %}
+    <div class="transaction-summary-grid what-if-metrics">
+      <div><span>{{ t('Recorded buffer now') }}</span><strong>{{ currency_symbol }}{{ '%.2f'|format(simulation.current_buffer) }}</strong></div>
+      <div><span>{{ t('After this decision') }}</span><strong>{{ currency_symbol }}{{ '%.2f'|format(simulation.post_buffer) }}</strong></div>
+      <div><span>{{ t('Buffer used') }}</span><strong>{% if simulation.buffer_used_pct is not none %}{{ simulation.buffer_used_pct }}%{% else %}—{% endif %}</strong></div>
+      <div><span>{{ t('Recent monthly savings pace') }}</span><strong>{{ currency_symbol }}{{ '%.2f'|format(simulation.avg_monthly_savings) }}</strong></div>
+    </div>
+    <div class="settings-message">
+      <strong>{{ t('Why Sigora says this') }}</strong>
+      <p>{% if simulation.level == 'comfortable' %}{{ t('This fits inside your recorded savings buffer.') }}{% elif simulation.level == 'caution' %}{{ t('This would use a large share of your recorded savings buffer.') }}{% else %}{{ t('This is larger than your currently recorded savings buffer.') }}{% endif %}</p>
+      {% if simulation.recovery_months is not none %}<small>{{ t('Estimated recovery time') }}: ~{{ simulation.recovery_months }} {{ t('months') }}</small>{% endif %}
+      {% if simulation.goal_name %}<small> · {{ t('Goal in view') }}: {{ simulation.goal_name }}</small>{% endif %}
+    </div>
+    {% else %}<p>{{ t('Add more transaction history before relying on this simulation.') }}</p>{% endif %}
+  </div>
+  {% endif %}
+  <p class="settings-muted">{{ t("AI interprets your question. Sigora's recorded financial data does the calculation.") }}</p>
   <p class="settings-muted">Forecasts are estimates from recorded data, not guarantees or regulated financial advice.</p>
 </div>
 {% endblock %}

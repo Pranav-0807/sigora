@@ -475,3 +475,76 @@ ONE non-security-specific action such as reviewing concentration, updating price
 End with: Educational analysis only — not a personalized investment recommendation.
 """
     return _generate(prompt, "INVESTMENT AI ERROR")
+
+# =====================================================
+# WHAT-IF V2 · NATURAL-LANGUAGE SCENARIO PARSER
+# =====================================================
+
+def parse_what_if_question(question, language="en"):
+    """Turn a natural-language money question into structured inputs only.
+
+    The model is deliberately NOT asked to decide affordability or do the
+    financial maths. Those calculations remain in Sigora's deterministic
+    financial engine.
+    """
+    import json
+    import re
+
+    question = (question or "").strip()
+    if not question:
+        return {"intent": "purchase", "subject": "this purchase", "amount": None, "timeframe": None}
+
+    language_names = {"en": "English", "ta": "Tamil", "hi": "Hindi"}
+    prompt = f"""
+You are the intent parser for Sigora's What-If financial simulator.
+The user's interface language is {language_names.get(language, 'English')}.
+
+USER QUESTION:
+{question}
+
+Extract facts stated by the user. Never invent a price, amount, date, salary,
+return, or other financial value. In particular, if the user names a product
+such as an iPhone but gives no price, amount MUST be null.
+
+Return ONLY valid JSON with these keys:
+{{"intent":"purchase|recurring_expense|income_change|investment|other","subject":"short description in the user's language","amount":number_or_null,"timeframe":"short timeframe stated by user or null"}}
+
+For recurring amounts, amount is the stated recurring amount. Do not calculate affordability.
+"""
+    raw = _generate(prompt, "What-if parser")
+    if raw and raw != AI_UNAVAILABLE_MESSAGE and not raw.startswith("Sigora AI is temporarily"):
+        try:
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.I | re.S)
+            data = json.loads(cleaned)
+            amount = data.get("amount")
+            try:
+                amount = float(amount) if amount is not None else None
+            except (TypeError, ValueError):
+                amount = None
+            return {
+                "intent": str(data.get("intent") or "purchase"),
+                "subject": str(data.get("subject") or question)[:160],
+                "amount": amount if amount and amount > 0 else None,
+                "timeframe": data.get("timeframe"),
+            }
+        except Exception as exc:
+            print("What-if parser JSON fallback:", repr(exc))
+
+    # Offline/no-AI fallback: extract an explicitly typed amount, never a product price.
+    normalized = question.replace(",", "")
+    patterns = [
+        r"(?:₹|rs\.?|inr)\s*(\d+(?:\.\d+)?)\s*([kKlL]?)",
+        r"(\d+(?:\.\d+)?)\s*([kKlL])(?:\b|akh)",
+    ]
+    amount = None
+    for pattern in patterns:
+        match = re.search(pattern, normalized, re.I)
+        if match:
+            amount = float(match.group(1))
+            suffix = (match.group(2) or "").lower()
+            if suffix == "k": amount *= 1000
+            elif suffix == "l": amount *= 100000
+            break
+    return {"intent": "purchase", "subject": question[:160], "amount": amount, "timeframe": None}
