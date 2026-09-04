@@ -254,3 +254,67 @@ CREATE TABLE IF NOT EXISTS investment_watchlist (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_watchlist_user ON investment_watchlist(user_id);
+
+-- Admin V1
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(30) NOT NULL DEFAULT 'user';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status VARCHAR(30) NOT NULL DEFAULT 'active';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_reason TEXT;
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(account_status);
+
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(100) NOT NULL,
+    target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    details TEXT,
+    ip_address VARCHAR(80),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_log(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_login_attempts (
+    id BIGSERIAL PRIMARY KEY,
+    email VARCHAR(255),
+    ip_address VARCHAR(80),
+    success BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_admin_login_attempts_lookup ON admin_login_attempts(email, ip_address, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_notes (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    note TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS admin_announcements (
+    id BIGSERIAL PRIMARY KEY,
+    admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    title VARCHAR(180) NOT NULL,
+    message TEXT NOT NULL,
+    link VARCHAR(255),
+    audience VARCHAR(30) NOT NULL DEFAULT 'all',
+    recipients INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS payment_events (
+    id BIGSERIAL PRIMARY KEY,
+    event_type VARCHAR(100) NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    payment_id VARCHAR(120),
+    order_id VARCHAR(120),
+    subscription_id VARCHAR(120),
+    amount NUMERIC(18,2),
+    currency VARCHAR(10),
+    status VARCHAR(60),
+    source VARCHAR(30) NOT NULL DEFAULT 'webhook',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_payment_events_created ON payment_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_payment_events_user ON payment_events(user_id);

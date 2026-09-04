@@ -1,0 +1,17 @@
+SIGORA INVESTMENTS V2 — LOCAL TEST BUILD
+
+This is the Investments-only upgrade built on the known-good SIGORA baseline.
+
+Run locally from this folder:
+  python3 -m venv .venv
+  source .venv/bin/activate
+  pip install -r requirements.txt
+  python3 app.py
+
+Then open:
+  http://127.0.0.1:5000/invest
+
+Important:
+- Keep your existing local .env private; it is intentionally NOT included in this ZIP.
+- Do not push/deploy until local testing passes.
+- Existing SIGORA features are retained; this package upgrades Investments only.

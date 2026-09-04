@@ -11,6 +11,8 @@ from flask import Flask, render_template, redirect, request, session, flash, sen
 import csv
 import hmac
 import hashlib
+import secrets
+from functools import wraps
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
@@ -106,6 +108,14 @@ from product_features import (
     redeem_subscription_coupon,
     get_user_id_for_subscription,
     get_razorpay_subscription_id,
+)
+from admin_features import (
+    ensure_admin_schema, get_admin_identity, get_user_access_state, touch_last_login,
+    admin_login_blocked, record_admin_login, audit, dashboard_metrics, recent_activity,
+    list_users as admin_list_users, user_detail as admin_user_detail, set_account_status,
+    set_user_premium, delete_managed_user, add_admin_note, feature_analytics,
+    list_support_messages, create_announcement, list_announcements, system_health,
+    record_payment_event, list_payment_events,
 )
 app = Flask(__name__)
 
@@ -449,6 +459,23 @@ app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")
 def _ensure_launch_schema():
     ensure_feature_schema()
     ensure_investment_schema()
+    ensure_admin_schema()
+    # Admin sessions are intentionally shorter and independent of normal user sessions.
+    if session.get("admin_user_id"):
+        now = datetime.utcnow()
+        last_raw = session.get("admin_last_seen")
+        try:
+            last_seen = datetime.fromisoformat(last_raw) if last_raw else now
+        except Exception:
+            last_seen = now
+        if now - last_seen > timedelta(minutes=30):
+            session.pop("admin_user_id", None)
+            session.pop("admin_last_seen", None)
+            session.pop("admin_csrf_token", None)
+            if request.path.startswith("/admin") and request.path != "/admin/login":
+                return redirect("/admin/login?expired=1")
+        else:
+            session["admin_last_seen"] = now.isoformat()
 
 
 # Complete Premium lifecycle localization: checkout, activation, usage, cancellation and billing states.
@@ -1968,7 +1995,17 @@ def login():
                 error="Invalid email or password."
             )
 
+        access = get_user_access_state(user["id"])
+        if access and access.get("account_status") != "active":
+            return render_template(
+                "login.html",
+                error="This account is currently unavailable. Please contact Sigora support."
+            )
+        if access and access.get("role") in {"super_admin", "admin", "support"}:
+            return redirect("/admin/login")
+
         session["user_id"] = user["id"]
+        touch_last_login(user["id"])
 
         return redirect("/dashboard")
 
@@ -2392,6 +2429,7 @@ def razorpay_verify():
         return jsonify({"ok": False, "error": "Invalid payment signature"}), 400
     if get_user_id_for_subscription(subscription_id) != user["id"]:
         return jsonify({"ok": False, "error": "Subscription does not belong to this account"}), 403
+    record_payment_event("checkout.signature_verified", user_id=user["id"], payment_id=payment_id, subscription_id=subscription_id, status="verified", source="client_verify")
     return jsonify({"ok": True})
 
 
@@ -2442,9 +2480,16 @@ def razorpay_webhook():
     payload = request.get_json(silent=True) or {}
     event = payload.get("event", "")
     entity = payload.get("payload", {}).get("subscription", {}).get("entity", {})
-    subscription_id = entity.get("id")
-    notes = entity.get("notes") or {}
+    payment_entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
+    subscription_id = entity.get("id") or payment_entity.get("subscription_id")
+    notes = entity.get("notes") or payment_entity.get("notes") or {}
     user_id = notes.get("user_id") or (get_user_id_for_subscription(subscription_id) if subscription_id else None)
+    amount_raw = payment_entity.get("amount")
+    amount = (float(amount_raw) / 100.0) if isinstance(amount_raw, (int, float)) else None
+    record_payment_event(event or "razorpay.webhook", user_id=int(user_id) if user_id else None,
+                         payment_id=payment_entity.get("id"), order_id=payment_entity.get("order_id"),
+                         subscription_id=subscription_id, amount=amount, currency=payment_entity.get("currency"),
+                         status=payment_entity.get("status") or entity.get("status"), source="webhook")
     if not user_id:
         return jsonify({"ok": True})
     active_events = {"subscription.activated", "subscription.charged"}
@@ -2536,38 +2581,235 @@ def premium():
     payment_ready = bool(os.getenv("RAZORPAY_KEY_ID") and os.getenv("RAZORPAY_KEY_SECRET") and pricing.get("plan_id"))
     return render_template("premium.html", settings=settings_data, premium_features=premium_features(intelligence), premium_status=status, ai_usage=usage, ai_limits=ai_limits, payment_ready=payment_ready, pricing=pricing, intelligence=intelligence)
 
+def _admin_ip():
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    return (forwarded.split(",")[0].strip() if forwarded else request.remote_addr) or "unknown"
+
+
+def _admin_csrf_token():
+    token = session.get("admin_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["admin_csrf_token"] = token
+    return token
+
+
+def _verify_admin_csrf():
+    supplied = request.form.get("csrf_token", "") or request.headers.get("X-CSRF-Token", "")
+    expected = session.get("admin_csrf_token", "")
+    return bool(expected and supplied and hmac.compare_digest(expected, supplied))
+
+
+def _current_admin():
+    admin_id = session.get("admin_user_id")
+    if not admin_id:
+        return None
+    identity = get_admin_identity(admin_id)
+    if not identity or identity.get("role") not in {"super_admin", "admin", "support"} or identity.get("account_status") != "active":
+        session.pop("admin_user_id", None)
+        return None
+    return identity
+
+
+def admin_required(roles=("super_admin", "admin")):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapped(*args, **kwargs):
+            admin = _current_admin()
+            if not admin:
+                return redirect("/admin/login?next=" + request.path)
+            if admin.get("role") not in roles:
+                return "Forbidden", 403
+            if request.method in {"POST", "PUT", "PATCH", "DELETE"} and not _verify_admin_csrf():
+                audit(admin["id"], "csrf_rejected", details=request.path, ip_address=_admin_ip())
+                return "Invalid or expired form token. Refresh the page and try again.", 400
+            return fn(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
+@app.context_processor
+def inject_admin_globals():
+    return {"admin_identity": _current_admin(), "admin_csrf_token": _admin_csrf_token() if session.get("admin_user_id") else ""}
+
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if _current_admin():
+        return redirect("/admin")
+    error = None
+    login_csrf = _admin_csrf_token()
+    if request.method == "POST":
+        if not _verify_admin_csrf():
+            return render_template("admin_login.html", error="Invalid or expired form token.", login_csrf=login_csrf), 400
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        ip = _admin_ip()
+        if admin_login_blocked(email, ip):
+            return render_template("admin_login.html", error="Too many failed attempts. Try again later."), 429
+        user = get_user_by_email(email) if email else None
+        identity = get_admin_identity(user["id"]) if user else None
+        valid = bool(user and identity and identity.get("role") in {"super_admin", "admin", "support"}
+                     and identity.get("account_status") == "active" and check_user_password(password, user["password_hash"]))
+        record_admin_login(email, ip, valid)
+        if not valid:
+            return render_template("admin_login.html", error="Invalid admin credentials."), 401
+        session.pop("user_id", None)
+        session["admin_user_id"] = user["id"]
+        session["admin_last_seen"] = datetime.utcnow().isoformat()
+        session["admin_csrf_token"] = secrets.token_urlsafe(32)
+        touch_last_login(user["id"])
+        audit(user["id"], "admin_login", details="Admin session started", ip_address=ip)
+        next_path = request.args.get("next", "")
+        return redirect(next_path if next_path.startswith("/admin") and not next_path.startswith("//") else "/admin")
+    return render_template("admin_login.html", error=error, expired=request.args.get("expired"), login_csrf=login_csrf)
+
+
+@app.route("/admin/logout", methods=["POST"])
+@admin_required(roles=("super_admin", "admin", "support"))
+def admin_logout():
+    admin = _current_admin()
+    if admin:
+        audit(admin["id"], "admin_logout", details="Admin session ended", ip_address=_admin_ip())
+    session.pop("admin_user_id", None)
+    session.pop("admin_last_seen", None)
+    session.pop("admin_csrf_token", None)
+    return redirect("/admin/login")
+
+
+@app.route("/admin")
+@admin_required(roles=("super_admin", "admin", "support"))
+def admin_dashboard():
+    return render_template("admin_dashboard.html", metrics=dashboard_metrics(), activity=recent_activity(15))
+
+
+@app.route("/admin/users")
+@admin_required(roles=("super_admin", "admin", "support"))
+def admin_users():
+    search=request.args.get("q","").strip(); status=request.args.get("status","").strip(); plan=request.args.get("plan","").strip()
+    return render_template("admin_users.html", users=admin_list_users(search,status,plan), search=search, status=status, plan=plan)
+
+
+@app.route("/admin/users/<int:user_id>")
+@admin_required(roles=("super_admin", "admin", "support"))
+def admin_user(user_id):
+    user=admin_user_detail(user_id)
+    if not user: return "Not found",404
+    return render_template("admin_user.html", user=user)
+
+
+@app.route("/admin/users/<int:user_id>/status", methods=["POST"])
+@admin_required()
+def admin_user_status(user_id):
+    admin=_current_admin(); status=request.form.get("status",""); reason=request.form.get("reason","").strip() or None
+    set_account_status(user_id,status,reason)
+    audit(admin["id"],"account_status_changed",user_id,f"status={status}; reason={reason or ''}",_admin_ip())
+    return redirect(f"/admin/users/{user_id}")
+
+
+@app.route("/admin/users/<int:user_id>/premium", methods=["POST"])
+@admin_required()
+def admin_user_premium(user_id):
+    admin=_current_admin(); active=request.form.get("active")=="1"
+    set_user_premium(user_id,active)
+    audit(admin["id"],"premium_granted" if active else "premium_revoked",user_id,"Manual admin change",_admin_ip())
+    return redirect(f"/admin/users/{user_id}")
+
+
+@app.route("/admin/users/<int:user_id>/note", methods=["POST"])
+@admin_required(roles=("super_admin", "admin", "support"))
+def admin_user_note(user_id):
+    admin=_current_admin(); note=request.form.get("note","").strip()
+    if note:
+        add_admin_note(user_id,admin["id"],note)
+        audit(admin["id"],"admin_note_added",user_id,note[:200],_admin_ip())
+    return redirect(f"/admin/users/{user_id}")
+
+
+@app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
+@admin_required(roles=("super_admin",))
+def admin_user_delete(user_id):
+    admin=_current_admin(); confirmation=request.form.get("confirm","").strip().upper()
+    if confirmation != "DELETE":
+        return redirect(f"/admin/users/{user_id}?delete_error=1")
+    # Audit before cascade deletion; target_user_id becomes NULL if the user is deleted.
+    audit(admin["id"],"user_deleted",user_id,"Permanent account deletion approved",_admin_ip())
+    delete_managed_user(user_id)
+    return redirect("/admin/users?deleted=1")
+
+
 @app.route("/admin/coupons", methods=["GET","POST"])
+@admin_required()
 def admin_coupons():
-    user=get_current_user()
-    if not user or not os.getenv("ADMIN_EMAIL") or user.get("email","").lower()!=os.getenv("ADMIN_EMAIL","").lower():
-        return "Not found",404
-    ensure_monetization_schema()
+    admin=_current_admin(); ensure_monetization_schema(); error=None
     if request.method=="POST":
         action=request.form.get("action")
         try:
             if action=="create":
-                create_coupon(
-                    request.form.get("code",""),
-                    request.form.get("discount_type","percent"),
-                    float(request.form.get("discount_value","0")),
-                    int(request.form["max_uses"]) if request.form.get("max_uses") else None,
-                    request.form.get("valid_until") or None,
-                    request.form.get("first_month_only")=="on",
-                    request.form.get("razorpay_offer_id","").strip() or None
-                )
+                create_coupon(request.form.get("code",""),request.form.get("discount_type","percent"),float(request.form.get("discount_value","0")),int(request.form["max_uses"]) if request.form.get("max_uses") else None,request.form.get("valid_until") or None,request.form.get("first_month_only")=="on",request.form.get("razorpay_offer_id","").strip() or None)
+                audit(admin["id"],"coupon_created",details=request.form.get("code","").upper(),ip_address=_admin_ip())
             elif action=="toggle":
-                toggle_coupon(int(request.form["coupon_id"]), request.form.get("active")=="1")
+                cid=int(request.form["coupon_id"]); active=request.form.get("active")=="1"; toggle_coupon(cid,active)
+                audit(admin["id"],"coupon_toggled",details=f"coupon_id={cid}; active={active}",ip_address=_admin_ip())
         except Exception as exc:
-            print("COUPON ADMIN ERROR:",repr(exc))
-    return render_template("admin_coupons.html", coupons=list_coupons(), premium_price=get_pricing()["premium_price"])
+            error=str(exc)
+    return render_template("admin_coupons.html", coupons=list_coupons(), premium_price=get_pricing()["premium_price"], admin_error=error)
+
+
+@app.route("/admin/analytics")
+@admin_required(roles=("super_admin", "admin", "support"))
+def admin_analytics():
+    return render_template("admin_analytics.html", analytics=feature_analytics(), metrics=dashboard_metrics())
+
+
+@app.route("/admin/support")
+@admin_required(roles=("super_admin", "admin", "support"))
+def admin_support():
+    return render_template("admin_support.html", messages=list_support_messages())
+
+
+@app.route("/admin/announcements", methods=["GET","POST"])
+@admin_required()
+def admin_announcements():
+    admin=_current_admin(); sent=None
+    if request.method=="POST":
+        title=request.form.get("title","").strip(); message=request.form.get("message","").strip(); link=request.form.get("link","").strip() or None; audience=request.form.get("audience","all")
+        if title and message:
+            sent=create_announcement(admin["id"],title,message,link,audience)
+            audit(admin["id"],"announcement_sent",details=f"audience={audience}; recipients={sent}; title={title}",ip_address=_admin_ip())
+    return render_template("admin_announcements.html", announcements=list_announcements(), sent=sent)
+
+
+@app.route("/admin/payments")
+@admin_required(roles=("super_admin", "admin"))
+def admin_payments():
+    return render_template("admin_payments.html", payments=list_payment_events())
+
+
+@app.route("/admin/audit")
+@admin_required(roles=("super_admin", "admin"))
+def admin_audit():
+    return render_template("admin_audit.html", activity=recent_activity(200))
+
+
+@app.route("/admin/system")
+@admin_required(roles=("super_admin", "admin"))
+def admin_system():
+    return render_template("admin_system.html", health=system_health())
+
 
 def get_current_user():
     ensure_feature_schema()
+    ensure_admin_schema()
     user_id = session.get("user_id")
 
     if not user_id:
         return None
 
+    access = get_user_access_state(user_id)
+    if not access or access.get("account_status") != "active":
+        session.pop("user_id", None)
+        return None
     return get_user_by_id(user_id)
 
 def categorize_transaction(description, transaction_type):
