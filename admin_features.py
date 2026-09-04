@@ -62,12 +62,20 @@ def ensure_admin_schema():
                     admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
                     title VARCHAR(180) NOT NULL,
                     message TEXT NOT NULL,
+                    title_ta VARCHAR(180),
+                    message_ta TEXT,
+                    title_hi VARCHAR(180),
+                    message_hi TEXT,
                     link VARCHAR(255),
                     audience VARCHAR(30) NOT NULL DEFAULT 'all',
                     recipients INTEGER NOT NULL DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS title_ta VARCHAR(180)")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS message_ta TEXT")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS title_hi VARCHAR(180)")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS message_hi TEXT")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS payment_events (
                     id BIGSERIAL PRIMARY KEY,
@@ -341,21 +349,37 @@ def list_support_messages(limit=200):
     finally: conn.close()
 
 
-def create_announcement(admin_user_id,title,message,link=None,audience='all'):
-    if audience not in {'all','free','premium'}: audience='all'
+def create_announcement(admin_user_id, title, message, link=None, audience='all', translations=None):
+    if audience not in {'all','free','premium'}:
+        audience='all'
+    translations = translations or {}
+    ta = translations.get('ta') or {}
+    hi = translations.get('hi') or {}
     ensure_admin_schema(); conn=get_connection()
     try:
         with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO admin_announcements(
+                       admin_user_id,title,message,title_ta,message_ta,title_hi,message_hi,link,audience,recipients
+                   ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,0) RETURNING id""",
+                (admin_user_id,title,message,ta.get('title'),ta.get('message'),hi.get('title'),hi.get('message'),link,audience)
+            )
+            announcement_id = cur.fetchone()[0]
             cond="role='user' AND account_status='active'"
-            if audience=='free': cond += " AND is_premium=FALSE"
-            elif audience=='premium': cond += " AND is_premium=TRUE"
-            cur.execute(f"""INSERT INTO alerts(user_id,title,message,alert_type,link,fingerprint)
-                            SELECT id,%s,%s,'info',%s,%s || '-' || id::text FROM users WHERE {cond}""",
-                        (title,message,link,f"admin-announcement-{int(datetime.utcnow().timestamp())}"))
+            if audience=='free':
+                cond += " AND is_premium=FALSE"
+            elif audience=='premium':
+                cond += " AND is_premium=TRUE"
+            cur.execute(
+                f"""INSERT INTO alerts(user_id,title,message,alert_type,link,fingerprint,announcement_id)
+                    SELECT id,%s,%s,'info',%s,%s || '-' || id::text,%s FROM users WHERE {cond}""",
+                (title,message,link,f"admin-announcement-{announcement_id}",announcement_id)
+            )
             recipients=cur.rowcount
-            cur.execute("INSERT INTO admin_announcements(admin_user_id,title,message,link,audience,recipients) VALUES(%s,%s,%s,%s,%s,%s)",(admin_user_id,title,message,link,audience,recipients))
+            cur.execute("UPDATE admin_announcements SET recipients=%s WHERE id=%s", (recipients,announcement_id))
         conn.commit(); return recipients
-    finally: conn.close()
+    finally:
+        conn.close()
 
 
 def list_announcements(limit=50):

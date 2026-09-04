@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="announcement-inbox-wrap">
+  <div class="announcement-inbox-head">
+    <div>
+      <span class="eyebrow">SIGORA</span>
+      <h1>{% if sigora_language == 'ta' %}அறிவிப்புகள்{% elif sigora_language == 'hi' %}घोषणाएँ{% else %}Announcements{% endif %}</h1>
+      <p>{% if sigora_language == 'ta' %}SIGORA-வின் சமீபத்திய புதுப்பிப்புகள் மற்றும் செய்திகள்.{% elif sigora_language == 'hi' %}SIGORA के नवीनतम अपडेट और संदेश।{% else %}Product updates and messages from SIGORA.{% endif %}</p>
+    </div>
+    {% if announcement_unread_count %}<span class="announcement-unread-pill">{{ announcement_unread_count }} {% if sigora_language == 'ta' %}படிக்காதது{% elif sigora_language == 'hi' %}अपठित{% else %}unread{% endif %}</span>{% endif %}
+  </div>
+
+  <div class="announcement-inbox-list">
+    {% for item in announcements %}
+    <article class="announcement-inbox-card {{ 'unread' if not item.is_read else '' }}">
+      <div class="announcement-inbox-meta"><span>{{ '●' if not item.is_read else '○' }}</span><time>{{ item.created_at.strftime('%d %b %Y · %H:%M') if item.created_at else '' }}</time></div>
+      <h2>{{ item.title }}</h2>
+      <p>{{ item.message }}</p>
+      <div class="announcement-inbox-actions">
+        {% if item.link %}<a href="{{ item.link }}">{% if sigora_language == 'ta' %}திற →{% elif sigora_language == 'hi' %}खोलें →{% else %}Open →{% endif %}</a>{% endif %}
+        {% if not item.is_read %}
+        <form method="post" action="/alerts/{{ item.id }}/read"><input type="hidden" name="next" value="/announcements"><button type="submit">{% if sigora_language == 'ta' %}படித்ததாக குறி{% elif sigora_language == 'hi' %}पढ़ा हुआ चिह्नित करें{% else %}Mark as read{% endif %}</button></form>
+        {% endif %}
+      </div>
+    </article>
+    {% else %}
+    <div class="announcement-empty"><span>♢</span><h2>{% if sigora_language == 'ta' %}இன்னும் அறிவிப்புகள் இல்லை{% elif sigora_language == 'hi' %}अभी कोई घोषणा नहीं है{% else %}No announcements yet{% endif %}</h2><p>{% if sigora_language == 'ta' %}புதிய SIGORA செய்திகள் இங்கே தோன்றும்.{% elif sigora_language == 'hi' %}नए SIGORA संदेश यहाँ दिखाई देंगे।{% else %}New SIGORA messages will appear here.{% endif %}</p></div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

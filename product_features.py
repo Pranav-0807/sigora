@@ -117,6 +117,7 @@ def ensure_feature_schema():
                 )
             """)
             cur.execute("ALTER TABLE alerts ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMP")
+            cur.execute("ALTER TABLE alerts ADD COLUMN IF NOT EXISTS announcement_id BIGINT")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS financial_accounts (
                     id SERIAL PRIMARY KEY,
@@ -487,28 +488,128 @@ def create_alert(user_id, title, message, alert_type="info", link=None, fingerpr
         return None
 
 
-def get_alerts(user_id, limit=8):
+def get_alerts(user_id, limit=8, language="en"):
+    try:
+        ensure_feature_schema()
+        lang = (language or "en").lower()
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT a.id,
+                           CASE WHEN %s='ta' THEN COALESCE(aa.title_ta,a.title)
+                                WHEN %s='hi' THEN COALESCE(aa.title_hi,a.title)
+                                ELSE a.title END AS localized_title,
+                           CASE WHEN %s='ta' THEN COALESCE(aa.message_ta,a.message)
+                                WHEN %s='hi' THEN COALESCE(aa.message_hi,a.message)
+                                ELSE a.message END AS localized_message,
+                           a.alert_type, a.link, a.is_read, a.created_at, a.announcement_id
+                    FROM alerts a
+                    LEFT JOIN admin_announcements aa ON aa.id=a.announcement_id
+                    WHERE a.user_id=%s
+                    ORDER BY a.created_at DESC LIMIT %s
+                """, (lang,lang,lang,lang,user_id,limit))
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+        return [
+            {"id": r[0], "title": r[1], "message": r[2], "alert_type": r[3],
+             "link": r[4], "is_read": bool(r[5]), "created_at": str(r[6]), "announcement_id": r[7]}
+            for r in rows
+        ]
+    except Exception as exc:
+        print(f"Sigora alerts unavailable safely: {exc}")
+        return []
+
+
+def get_latest_unread_announcement(user_id, language="en"):
+    """Return the newest unread admin announcement localized for the active UI language."""
+    try:
+        ensure_feature_schema()
+        lang=(language or "en").lower()
+        conn=get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT a.id,
+                           CASE WHEN %s='ta' THEN COALESCE(aa.title_ta,a.title)
+                                WHEN %s='hi' THEN COALESCE(aa.title_hi,a.title)
+                                ELSE a.title END,
+                           CASE WHEN %s='ta' THEN COALESCE(aa.message_ta,a.message)
+                                WHEN %s='hi' THEN COALESCE(aa.message_hi,a.message)
+                                ELSE a.message END,
+                           a.link, a.created_at
+                    FROM alerts a
+                    JOIN admin_announcements aa ON aa.id=a.announcement_id
+                    WHERE a.user_id=%s AND a.is_read=FALSE
+                    ORDER BY a.created_at ASC
+                    LIMIT 1
+                """, (lang,lang,lang,lang,user_id))
+                r=cur.fetchone()
+        finally:
+            conn.close()
+        if not r:
+            return None
+        return {"id":r[0],"title":r[1],"message":r[2],"link":r[3],"created_at":str(r[4])}
+    except Exception as exc:
+        print(f"Sigora announcement popup unavailable safely: {exc}")
+        return None
+
+
+def get_user_announcements(user_id, language="en", limit=50):
+    """Return admin announcements for a user, localized to the selected UI language."""
+    try:
+        ensure_feature_schema()
+        lang = (language or "en").lower()
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT a.id,
+                           CASE WHEN %s='ta' THEN COALESCE(aa.title_ta,a.title)
+                                WHEN %s='hi' THEN COALESCE(aa.title_hi,a.title)
+                                ELSE a.title END AS localized_title,
+                           CASE WHEN %s='ta' THEN COALESCE(aa.message_ta,a.message)
+                                WHEN %s='hi' THEN COALESCE(aa.message_hi,a.message)
+                                ELSE a.message END AS localized_message,
+                           a.link, a.is_read, a.created_at
+                    FROM alerts a
+                    JOIN admin_announcements aa ON aa.id=a.announcement_id
+                    WHERE a.user_id=%s
+                    ORDER BY a.created_at DESC
+                    LIMIT %s
+                """, (lang,lang,lang,lang,user_id,limit))
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+        return [
+            {"id":r[0],"title":r[1],"message":r[2],"link":r[3],"is_read":bool(r[4]),"created_at":r[5]}
+            for r in rows
+        ]
+    except Exception as exc:
+        print(f"Sigora announcement inbox unavailable safely: {exc}")
+        return []
+
+
+def get_unread_announcement_count(user_id):
+    """Return unread admin-announcement count for the navbar badge."""
     try:
         ensure_feature_schema()
         conn = get_connection()
         try:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT id, title, message, alert_type, link, is_read, created_at
-                    FROM alerts WHERE user_id=%s
-                    ORDER BY created_at DESC LIMIT %s
-                """, (user_id, limit))
-                rows = cur.fetchall()
+                    SELECT COUNT(*)
+                    FROM alerts
+                    WHERE user_id=%s AND announcement_id IS NOT NULL AND is_read=FALSE
+                """, (user_id,))
+                row = cur.fetchone()
         finally:
             conn.close()
-        return [
-            {"id": r[0], "title": r[1], "message": r[2], "alert_type": r[3],
-             "link": r[4], "is_read": bool(r[5]), "created_at": str(r[6])}
-            for r in rows
-        ]
+        return int(row[0] or 0) if row else 0
     except Exception as exc:
-        print(f"Sigora alerts unavailable safely: {exc}")
-        return []
+        print(f"Sigora unread announcement count unavailable safely: {exc}")
+        return 0
 
 
 def mark_alert_read(user_id, alert_id):

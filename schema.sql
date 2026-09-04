@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     fingerprint VARCHAR(255),
     is_read BOOLEAN NOT NULL DEFAULT FALSE,
     email_sent_at TIMESTAMP,
+    announcement_id BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -297,6 +298,10 @@ CREATE TABLE IF NOT EXISTS admin_announcements (
     admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     title VARCHAR(180) NOT NULL,
     message TEXT NOT NULL,
+    title_ta VARCHAR(180),
+    message_ta TEXT,
+    title_hi VARCHAR(180),
+    message_hi TEXT,
     link VARCHAR(255),
     audience VARCHAR(30) NOT NULL DEFAULT 'all',
     recipients INTEGER NOT NULL DEFAULT 0,

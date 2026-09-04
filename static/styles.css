@@ -3369,3 +3369,60 @@ a {
 .import-review-pill{display:inline-block;padding:5px 8px;border-radius:999px;font-size:.78rem;font-weight:700;white-space:normal;max-width:250px}.import-review-pill.good{background:#edf5ef;color:#21492c}.import-review-pill.attention{background:#fff5dd;color:#684d0b}
 #cashOpening{margin:12px 0}#cashOpening label{margin-bottom:6px}
 @media(max-width:820px){.transaction-list-head-v2{display:none}.transaction-row-v2{grid-template-columns:1fr auto;gap:8px 12px}.transaction-row-v2>div,.transaction-row-v2>strong{min-width:0}.transaction-account-cell{grid-column:1/2}.transaction-row-v2 .card-actions{grid-column:2/3;grid-row:1/4}.transaction-amount-modern{grid-column:2/3}.form-row{grid-template-columns:1fr}}
+
+/* ==========================================
+   ANNOUNCEMENT POPUP V2 · terminal typing UI
+   ========================================== */
+.sigora-announcement-overlay{
+    position:fixed;inset:0;z-index:2500;display:grid;place-items:center;
+    padding:24px;background:rgba(2,6,7,.78);backdrop-filter:blur(8px);
+    animation:sigoraAnnounceIn .18s ease-out both;
+}
+.sigora-announcement-overlay.closing{animation:sigoraAnnounceOut .18s ease-in both}
+.sigora-announcement-modal{
+    width:min(760px,100%);max-height:min(82vh,760px);overflow:auto;
+    border:1px solid rgba(164,255,50,.5);border-radius:22px;
+    background:linear-gradient(180deg,#091012 0%,#070b0d 100%);
+    box-shadow:0 28px 90px rgba(0,0,0,.55),0 0 0 1px rgba(164,255,50,.05) inset;
+    color:#f4f7f5;
+}
+.sigora-announcement-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 24px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sigora-announcement-kicker{display:flex;align-items:center;gap:11px;font-size:17px;letter-spacing:.01em}
+.sigora-announcement-kicker strong{color:#b5ff45}
+.sigora-announcement-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:rgba(164,255,50,.1);color:#b5ff45;font-size:22px}
+.sigora-announcement-close{border:0;background:transparent;color:#8d9994;font-size:28px;line-height:1;padding:5px 8px;border-radius:8px;cursor:pointer}
+.sigora-announcement-close:hover{color:#fff;background:rgba(255,255,255,.06)}
+.sigora-announcement-terminal{
+    margin:22px 24px 0;padding:25px 24px;min-height:230px;border:1px solid rgba(255,255,255,.11);border-radius:15px;
+    background:#05090a;font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    box-shadow:inset 0 0 32px rgba(0,0,0,.28);
+}
+.sigora-announcement-title{margin:0 0 20px;color:#b5ff45;font:700 20px/1.45 "SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;white-space:pre-wrap}
+.sigora-announcement-message{display:inline;color:#edf3ef;font-size:16px;line-height:1.72;white-space:pre-wrap;overflow-wrap:anywhere}
+.sigora-announcement-cursor{display:inline-block;width:9px;height:1.25em;margin-left:3px;vertical-align:-.2em;background:#b5ff45;animation:sigoraCursor .8s steps(1) infinite}
+.sigora-announcement-cursor.settled{opacity:.85}
+.sigora-announcement-foot{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 24px 24px}
+.sigora-announcement-team{font:600 13px/1.4 "SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;color:#8e9a95}
+.sigora-announcement-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.sigora-announcement-primary,.sigora-announcement-secondary{min-height:44px;border-radius:11px;padding:11px 18px;font:700 14px/1 "SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.sigora-announcement-primary{border:1px solid #b5ff45;background:#b5ff45;color:#081005;cursor:pointer}
+.sigora-announcement-secondary{border:1px solid rgba(181,255,69,.34);background:rgba(181,255,69,.06);color:#caff7a}
+.sigora-announcement-primary:hover{filter:brightness(1.04)}
+.sigora-announcement-secondary:hover{background:rgba(181,255,69,.11);color:#d8ff9c}
+@keyframes sigoraCursor{0%,48%{opacity:1}49%,100%{opacity:0}}
+@keyframes sigoraAnnounceIn{from{opacity:0}to{opacity:1}}
+@keyframes sigoraAnnounceOut{from{opacity:1}to{opacity:0}}
+@media (max-width:640px){
+    .sigora-announcement-overlay{padding:13px;align-items:center}
+    .sigora-announcement-head{padding:18px 17px 15px}
+    .sigora-announcement-terminal{margin:16px 14px 0;padding:20px 17px;min-height:210px}
+    .sigora-announcement-title{font-size:17px}.sigora-announcement-message{font-size:14px;line-height:1.65}
+    .sigora-announcement-foot{align-items:flex-start;flex-direction:column;padding:17px 15px 19px}
+    .sigora-announcement-actions{width:100%}.sigora-announcement-primary,.sigora-announcement-secondary{flex:1}
+}
+@media (prefers-reduced-motion:reduce){
+    .sigora-announcement-overlay,.sigora-announcement-overlay.closing,.sigora-announcement-cursor{animation:none!important}
+}
+
+/* Announcements V2.1 — permanent bell + localized history */
+.announcement-bell{position:relative;width:38px;height:38px;border:1px solid rgba(255,255,255,.09);border-radius:12px;display:grid;place-items:center;color:#c8ced4;text-decoration:none;background:#0e1114;transition:.18s ease}.announcement-bell:hover{color:var(--accent);border-color:rgba(184,255,61,.28);background:rgba(184,255,61,.04)}.announcement-bell>svg{display:block}.announcement-bell>b{position:absolute;right:-5px;top:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:var(--accent);color:#090b0d;display:grid;place-items:center;font-size:8px;font-weight:1000;border:2px solid #0a0c0e}.announcement-inbox-wrap{max-width:940px;margin:0 auto;padding:28px 0 70px}.announcement-inbox-head{display:flex;align-items:flex-end;justify-content:space-between;gap:22px;padding:22px 0 26px;border-bottom:1px solid rgba(255,255,255,.07)}.announcement-inbox-head h1{font-size:42px;margin:6px 0 8px}.announcement-inbox-head p{margin:0;color:var(--muted);font-size:12px}.announcement-unread-pill{flex:none;padding:8px 11px;border:1px solid rgba(184,255,61,.22);border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:9px;font-weight:900}.announcement-inbox-list{display:grid;gap:12px;padding-top:18px}.announcement-inbox-card{padding:22px 24px;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:#0c0f12}.announcement-inbox-card.unread{border-color:rgba(184,255,61,.20);background:linear-gradient(135deg,rgba(184,255,61,.055),rgba(12,15,18,.97) 45%)}.announcement-inbox-meta{display:flex;align-items:center;gap:9px;color:#747c84;font:9px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;text-transform:uppercase;letter-spacing:.08em}.announcement-inbox-card.unread .announcement-inbox-meta span{color:var(--accent)}.announcement-inbox-card h2{font:800 19px/1.3 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;margin:13px 0 9px;color:#f3f6f7}.announcement-inbox-card p{white-space:pre-wrap;color:#aeb5bb;font:11px/1.75 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;margin:0}.announcement-inbox-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:17px}.announcement-inbox-actions form{margin:0}.announcement-inbox-actions a,.announcement-inbox-actions button{border:1px solid rgba(255,255,255,.09);border-radius:10px;background:#11151a;color:#cdd3d8;padding:8px 11px;text-decoration:none;font-size:9px;font-weight:900;cursor:pointer}.announcement-inbox-actions a{border-color:rgba(184,255,61,.22);color:var(--accent)}.announcement-empty{text-align:center;padding:70px 20px;border:1px dashed rgba(255,255,255,.09);border-radius:20px;color:var(--muted)}.announcement-empty>span{font-size:28px;display:block;transform:rotate(45deg);margin-bottom:12px;color:#70777e}.announcement-empty h2{font-size:18px;color:#e9edef}.announcement-empty p{font-size:11px}.focus-topbar>div{min-width:0}.focus-topbar .announcement-bell{flex:none}@media(max-width:850px){.announcement-bell{width:36px;height:36px}.announcement-inbox-wrap{padding:12px 0 55px}.announcement-inbox-head{align-items:flex-start;flex-direction:column}.announcement-inbox-head h1{font-size:32px}.announcement-inbox-card{padding:18px}.focus-topbar>div{gap:8px}.focus-topbar .topbar-premium{max-width:125px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}

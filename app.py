@@ -5,6 +5,7 @@ from ai_insights import(get_ai_insights,
                         get_dashboard_ai_insight,
                         get_investment_ai_insight,
                         parse_what_if_question,
+                        translate_announcement_text,
                     )
 import os
 import math
@@ -83,6 +84,9 @@ from product_features import (
     get_gamification,
     award_activity,
     get_alerts,
+    get_latest_unread_announcement,
+    get_user_announcements,
+    get_unread_announcement_count,
     mark_alert_read,
     sync_financial_alerts,
     send_email_alert,
@@ -572,6 +576,14 @@ def inject_sigora_globals():
         "sigora_languages": SIGORA_LANGUAGES,
         "t": _t,
         "sigora_phrase_translations": SIGORA_PHRASE_TRANSLATIONS.get(_sigora_language(), {}),
+        "announcement_popup": (
+            get_latest_unread_announcement(user["id"], _sigora_language())
+            if user and not request.path.startswith("/admin") and request.path != "/announcements" else None
+        ),
+        "announcement_unread_count": (
+            get_unread_announcement_count(user["id"])
+            if user and not request.path.startswith("/admin") else 0
+        ),
     }
 
 @app.template_filter("money")
@@ -890,7 +902,7 @@ def dashboard():
         app.logger.exception("Financial alert sync failed: %s", exc)
 
     try:
-        alerts = get_alerts(user["id"], 6)
+        alerts = get_alerts(user["id"], 6, _sigora_language())
     except Exception as exc:
         app.logger.exception("Financial alert load failed: %s", exc)
         alerts = []
@@ -2381,6 +2393,15 @@ def settings():
     return render_template("settings.html", settings=settings_data, premium_features=premium_features(), error=error)
 
 
+@app.route("/announcements")
+def announcements():
+    user = get_current_user()
+    if not user:
+        return redirect("/login")
+    items = get_user_announcements(user["id"], _sigora_language(), 100)
+    return render_template("announcements.html", announcements=items)
+
+
 @app.route("/alerts/<int:alert_id>/read", methods=["POST"])
 def read_alert(alert_id):
     user = get_current_user()
@@ -2830,8 +2851,12 @@ def admin_announcements():
     if request.method=="POST":
         title=request.form.get("title","").strip(); message=request.form.get("message","").strip(); link=request.form.get("link","").strip() or None; audience=request.form.get("audience","all")
         if title and message:
-            sent=create_announcement(admin["id"],title,message,link,audience)
-            audit(admin["id"],"announcement_sent",details=f"audience={audience}; recipients={sent}; title={title}",ip_address=_admin_ip())
+            translations={
+                "ta": translate_announcement_text(title,message,"ta"),
+                "hi": translate_announcement_text(title,message,"hi"),
+            }
+            sent=create_announcement(admin["id"],title,message,link,audience,translations=translations)
+            audit(admin["id"],"announcement_sent",details=f"audience={audience}; recipients={sent}; title={title}; localized=ta,hi",ip_address=_admin_ip())
     return render_template("admin_announcements.html", announcements=list_announcements(), sent=sent)
 
 

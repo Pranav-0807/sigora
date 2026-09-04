@@ -87,6 +87,60 @@ def _generate(prompt, label):
         return AI_UNAVAILABLE_MESSAGE
 
 
+
+# =====================================================
+# ANNOUNCEMENT TRANSLATION
+# =====================================================
+
+def translate_announcement_text(title, message, language):
+    """Translate admin-authored announcement copy without changing meaning or formatting.
+
+    Announcements are authored in English. Translation happens once when the
+    announcement is sent, not once per recipient/page view. If AI is unavailable
+    the English original is returned so delivery is never blocked.
+    """
+    language = (language or "en").lower()
+    if language == "en":
+        return {"title": title, "message": message}
+
+    language_name = {"ta": "Tamil", "hi": "Hindi"}.get(language)
+    if not language_name:
+        return {"title": title, "message": message}
+
+    marker = "\n<<<SIGORA_MESSAGE>>>\n"
+    prompt = f"""
+You are translating an in-app announcement for SIGORA.
+Translate the English TITLE and MESSAGE into {language_name}.
+
+Rules:
+- Preserve the exact meaning and tone.
+- Do not add, remove, summarize, explain, or invent information.
+- Keep SIGORA, Sigora, Premium, product names, URLs, amounts and symbols unchanged where appropriate.
+- Preserve paragraph breaks and list structure in the message.
+- Return exactly two parts separated by this line:
+<<<SIGORA_MESSAGE>>>
+- Do not use markdown fences or add labels.
+
+TITLE:
+{title}
+
+MESSAGE:
+{message}
+"""
+    translated = _generate(prompt, f"ANNOUNCEMENT {language_name.upper()} TRANSLATION ERROR")
+    if not translated or translated == AI_UNAVAILABLE_MESSAGE or "temporarily" in translated.lower():
+        return {"title": title, "message": message}
+
+    if marker.strip() not in translated:
+        return {"title": title, "message": message}
+
+    translated_title, translated_message = translated.split(marker.strip(), 1)
+    translated_title = translated_title.strip()
+    translated_message = translated_message.strip()
+    if not translated_title or not translated_message:
+        return {"title": title, "message": message}
+    return {"title": translated_title[:180], "message": translated_message}
+
 # =====================================================
 # GENERAL AI INSIGHTS
 # =====================================================

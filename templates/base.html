@@ -23,7 +23,7 @@
     <div class="drawer-group"><span>{{ t('plan') }}</span><a href="/budgets">◫ <b>{{ t('budgets') }}</b></a><a href="/goals">◎ <b>{{ t('goals') }}</b></a><a href="/reports">▥ <b>{{ t('reports') }}</b></a></div>
     <div class="drawer-group drawer-group-featured"><span>{{ t('intelligence_group') }}</span><a href="/intelligence">◈ <b>{{ t('intelligence') }}</b><small>Know what happens next</small></a><a href="/insights">✦ <b>{{ t('insights') }}</b><small>Explain your money</small></a></div>
     <div class="drawer-group"><span>{{ t('invest_group') }}</span><a href="/invest">↗ <b>{{ t('invest') }}</b></a></div>
-    <div class="drawer-group"><span>{{ t('tools') }}</span><a href="/import-transactions">⇧ <b>{{ t('import') }}</b></a><a href="/settings">⚙ <b>{{ t('settings') }}</b></a><button class="drawer-link-button" type="button" onclick="closeSigoraMenu();openTutorial()">▶ <b>{{ t('tutorial') }}</b></button></div>
+    <div class="drawer-group"><span>{{ t('tools') }}</span><a href="/announcements">🔔 <b>{% if sigora_language == 'ta' %}அறிவிப்புகள்{% elif sigora_language == 'hi' %}घोषणाएँ{% else %}Announcements{% endif %}</b>{% if announcement_unread_count %}<small>{{ announcement_unread_count }} {% if sigora_language == 'ta' %}புதியது{% elif sigora_language == 'hi' %}नया{% else %}unread{% endif %}</small>{% endif %}</a><a href="/import-transactions">⇧ <b>{{ t('import') }}</b></a><a href="/settings">⚙ <b>{{ t('settings') }}</b></a><button class="drawer-link-button" type="button" onclick="closeSigoraMenu();openTutorial()">▶ <b>{{ t('tutorial') }}</b></button></div>
   </div>
   <div class="drawer-bottom">
     <a class="drawer-premium" href="/premium">✦ {{ t('premium') }} · {{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }}/mo</a>
@@ -35,11 +35,75 @@
 
 <div class="app-shell app-shell-focus">
   <main class="main-content main-content-focus">
-    {% if session.get("user_id") %}<header class="focus-topbar"><a href="/dashboard" class="focus-brand"><span class="brand-mark">S</span><strong>SIGORA</strong></a><div><a href="/premium" class="topbar-premium">{{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }} {{ t('premium') }}</a><span class="live-indicator"><span class="status-dot"></span>{{ t('live') }}</span></div></header>{% endif %}
+    {% if session.get("user_id") %}<header class="focus-topbar"><a href="/dashboard" class="focus-brand"><span class="brand-mark">S</span><strong>SIGORA</strong></a><div><a href="/announcements" class="announcement-bell" aria-label="{% if sigora_language == 'ta' %}அறிவிப்புகள்{% elif sigora_language == 'hi' %}घोषणाएँ{% else %}Announcements{% endif %}" title="{% if sigora_language == 'ta' %}அறிவிப்புகள்{% elif sigora_language == 'hi' %}घोषणाएँ{% else %}Announcements{% endif %}"><svg aria-hidden="true" viewBox="0 0 24 24" width="19" height="19"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>{% if announcement_unread_count %}<b>{{ announcement_unread_count if announcement_unread_count < 100 else '99+' }}</b>{% endif %}</a><a href="/premium" class="topbar-premium">{{ premium_currency_symbol }}{{ "%.2f"|format(premium_price) if premium_price % 1 else "%.0f"|format(premium_price) }} {{ t('premium') }}</a><span class="live-indicator"><span class="status-dot"></span>{{ t('live') }}</span></div></header>{% endif %}
     <section class="page-content">{% block content %}{% endblock %}</section>
     <footer class="site-footer"><span>© 2026 SIGORA · Public Beta</span><nav aria-label="Legal and support"><a href="/privacy">{{ t('privacy') }}</a><a href="/terms">{{ t('terms') }}</a><a href="/financial-disclaimer">{{ t('disclaimer') }}</a><a href="/support">{{ t('support') }}</a></nav></footer>
   </main>
 </div>
+
+{% if session.get("user_id") and announcement_popup %}
+<div class="sigora-announcement-overlay" id="sigoraAnnouncement" role="dialog" aria-modal="true" aria-labelledby="sigoraAnnouncementTitle">
+  <div class="sigora-announcement-modal">
+    <div class="sigora-announcement-head">
+      <div class="sigora-announcement-kicker"><span class="sigora-announcement-icon" aria-hidden="true">◖</span><strong>{% if sigora_language == 'ta' %}SIGORA அறிவிப்பு{% elif sigora_language == 'hi' %}SIGORA घोषणा{% else %}SIGORA Announcement{% endif %}</strong></div>
+      <button class="sigora-announcement-close" type="button" onclick="dismissSigoraAnnouncement()" aria-label="{{ 'மூடு' if sigora_language == 'ta' else ('बंद करें' if sigora_language == 'hi' else 'Close') }}">×</button>
+    </div>
+    <div class="sigora-announcement-terminal">
+      <h2 id="sigoraAnnouncementTitle" class="sigora-announcement-title" data-type-title="{{ announcement_popup.title|e }}"></h2>
+      <div id="sigoraAnnouncementMessage" class="sigora-announcement-message" data-type-message="{{ announcement_popup.message|e }}" aria-live="polite"></div>
+      <span class="sigora-announcement-cursor" id="sigoraAnnouncementCursor" aria-hidden="true"></span>
+    </div>
+    <div class="sigora-announcement-foot">
+      <span class="sigora-announcement-team">♥ Team SIGORA</span>
+      <div class="sigora-announcement-actions">
+        {% if announcement_popup.link %}<a class="sigora-announcement-secondary" href="{{ announcement_popup.link }}" onclick="markSigoraAnnouncementRead()">{% if sigora_language == 'ta' %}திற →{% elif sigora_language == 'hi' %}खोलें →{% else %}Open →{% endif %}</a>{% endif %}
+        <button class="sigora-announcement-primary" type="button" onclick="dismissSigoraAnnouncement()">{% if sigora_language == 'ta' %}புரிந்தது →{% elif sigora_language == 'hi' %}समझ गया →{% else %}Got it →{% endif %}</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const root=document.getElementById('sigoraAnnouncement');
+  if(!root) return;
+  const titleEl=document.getElementById('sigoraAnnouncementTitle');
+  const msgEl=document.getElementById('sigoraAnnouncementMessage');
+  const cursor=document.getElementById('sigoraAnnouncementCursor');
+  const title=titleEl.dataset.typeTitle||'';
+  const message=msgEl.dataset.typeMessage||'';
+  const reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let timers=[];
+  function typeInto(el,text,speed,done){
+    if(reduced){el.textContent=text; if(done)done(); return;}
+    const chars=(typeof Intl!=='undefined'&&Intl.Segmenter)
+      ? Array.from(new Intl.Segmenter(document.body.dataset.language||'en',{granularity:'grapheme'}).segment(text),x=>x.segment)
+      : Array.from(text);
+    let i=0;
+    function tick(){
+      if(i>=chars.length){if(done)done();return;}
+      el.textContent+=chars[i++];
+      timers.push(setTimeout(tick, chars[i-1]==='\n' ? 70 : speed));
+    }
+    tick();
+  }
+  timers.push(setTimeout(()=>typeInto(titleEl,title,32,()=>{
+    timers.push(setTimeout(()=>typeInto(msgEl,message,17,()=>{if(cursor)cursor.classList.add('settled');}),180));
+  }),260));
+  window.markSigoraAnnouncementRead=function(){
+    const data=new FormData(); data.append('next',window.location.pathname+window.location.search);
+    fetch('/alerts/{{ announcement_popup.id }}/read',{method:'POST',body:data,credentials:'same-origin',keepalive:true}).catch(()=>{});
+  };
+  window.dismissSigoraAnnouncement=function(){
+    window.markSigoraAnnouncementRead();
+    timers.forEach(clearTimeout); timers=[];
+    root.classList.add('closing');
+    setTimeout(()=>root.remove(),180);
+  };
+  root.addEventListener('click',e=>{if(e.target===root)window.dismissSigoraAnnouncement();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('sigoraAnnouncement'))window.dismissSigoraAnnouncement();});
+})();
+</script>
+{% endif %}
 
 {% set celebration = request.args.get('celebration') %}
 {% if celebration %}
