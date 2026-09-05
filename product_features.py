@@ -118,6 +118,7 @@ def ensure_feature_schema():
             """)
             cur.execute("ALTER TABLE alerts ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMP")
             cur.execute("ALTER TABLE alerts ADD COLUMN IF NOT EXISTS announcement_id BIGINT")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_alerts_announcement_id ON alerts(announcement_id)")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS financial_accounts (
                     id SERIAL PRIMARY KEY,
@@ -619,6 +620,42 @@ def mark_alert_read(user_id, alert_id):
         with conn.cursor() as cur:
             cur.execute("UPDATE alerts SET is_read=TRUE WHERE id=%s AND user_id=%s", (alert_id, user_id))
         conn.commit()
+    finally:
+        conn.close()
+
+
+
+def clear_user_announcement(user_id, alert_id):
+    """Remove one read announcement from only this user's inbox."""
+    ensure_feature_schema()
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM alerts
+                WHERE id=%s AND user_id=%s AND announcement_id IS NOT NULL AND is_read=TRUE
+                RETURNING id
+            """, (alert_id, user_id))
+            removed = cur.fetchone() is not None
+        conn.commit()
+        return removed
+    finally:
+        conn.close()
+
+
+def clear_read_user_announcements(user_id):
+    """Clear all already-read announcements for one user only."""
+    ensure_feature_schema()
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM alerts
+                WHERE user_id=%s AND announcement_id IS NOT NULL AND is_read=TRUE
+            """, (user_id,))
+            removed = cur.rowcount
+        conn.commit()
+        return removed
     finally:
         conn.close()
 

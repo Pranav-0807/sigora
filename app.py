@@ -88,6 +88,8 @@ from product_features import (
     get_user_announcements,
     get_unread_announcement_count,
     mark_alert_read,
+    clear_user_announcement,
+    clear_read_user_announcements,
     sync_financial_alerts,
     send_email_alert,
     send_transactional_email,
@@ -119,8 +121,9 @@ from admin_features import (
     admin_login_blocked, record_admin_login, audit, dashboard_metrics, recent_activity,
     list_users as admin_list_users, user_detail as admin_user_detail, set_account_status,
     set_user_premium, delete_managed_user, add_admin_note, feature_analytics,
-    list_support_messages, create_announcement, list_announcements, system_health,
-    record_payment_event, list_payment_events,
+    list_support_messages, create_announcement, list_announcements, get_announcement,
+    update_announcement, delete_announcement, list_staff_accounts, search_staff_candidates,
+    set_staff_role, system_health, record_payment_event, list_payment_events,
 )
 app = Flask(__name__)
 
@@ -489,6 +492,29 @@ _WHAT_IF_V2_I18N = {
 for _lang, _items in _WHAT_IF_V2_I18N.items():
     SIGORA_TRANSLATIONS.setdefault(_lang, {}).update(_items)
     SIGORA_PHRASE_TRANSLATIONS.setdefault(_lang, {}).update(_items)
+
+# Final dashboard localization pass: these system-generated strings are stored
+# in English internally, but must follow the user's active app language.
+_DASHBOARD_SYSTEM_I18N = {
+    "ta": {
+        "Not enough data yet. Add income or expense transactions to unlock your Financial Health Score.": "இன்னும் போதுமான தரவு இல்லை. உங்கள் நிதி ஆரோக்கிய மதிப்பெண்ணைத் திறக்க வருமானம் அல்லது செலவு பரிவர்த்தனைகளைச் சேர்க்கவும்.",
+        "Welcome to Sigora": "SIGORA-வுக்கு வரவேற்கிறோம்",
+        "Welcome to Sigora 👋": "SIGORA-வுக்கு வரவேற்கிறோம் 👋",
+        "You're all set to start tracking your money, setting goals and understanding your finances better. Want to unlock more? Try Sigora Premium for advanced AI insights, forecasting, What-If simulations and more.": "உங்கள் பணத்தை கண்காணிக்கவும், இலக்குகளை அமைக்கவும், உங்கள் நிதியை சிறப்பாகப் புரிந்துகொள்ளவும் நீங்கள் தயாராக உள்ளீர்கள். மேலும் அம்சங்களைத் திறக்க விரும்புகிறீர்களா? மேம்பட்ட AI நுண்ணறிவுகள், முன்கணிப்புகள், What-If சிமுலேஷன்கள் மற்றும் பல அம்சங்களுக்கு SIGORA Premium-ஐ முயற்சிக்கவும்.",
+        "You’re all set to start tracking your money, setting goals and understanding your finances better. Want to unlock more? Try Sigora Premium for advanced AI insights, forecasting, What-If simulations and more.": "உங்கள் பணத்தை கண்காணிக்கவும், இலக்குகளை அமைக்கவும், உங்கள் நிதியை சிறப்பாகப் புரிந்துகொள்ளவும் நீங்கள் தயாராக உள்ளீர்கள். மேலும் அம்சங்களைத் திறக்க விரும்புகிறீர்களா? மேம்பட்ட AI நுண்ணறிவுகள், முன்கணிப்புகள், What-If சிமுலேஷன்கள் மற்றும் பல அம்சங்களுக்கு SIGORA Premium-ஐ முயற்சிக்கவும்.",
+    },
+    "hi": {
+        "Not enough data yet. Add income or expense transactions to unlock your Financial Health Score.": "अभी पर्याप्त डेटा नहीं है। अपना वित्तीय स्वास्थ्य स्कोर अनलॉक करने के लिए आय या खर्च के लेन-देन जोड़ें।",
+        "Welcome to Sigora": "SIGORA में आपका स्वागत है",
+        "Welcome to Sigora 👋": "SIGORA में आपका स्वागत है 👋",
+        "You're all set to start tracking your money, setting goals and understanding your finances better. Want to unlock more? Try Sigora Premium for advanced AI insights, forecasting, What-If simulations and more.": "अब आप अपने पैसे को ट्रैक करने, लक्ष्य तय करने और अपनी वित्तीय स्थिति को बेहतर समझने के लिए तैयार हैं। और फीचर्स अनलॉक करना चाहते हैं? उन्नत AI इनसाइट्स, पूर्वानुमान, What-If सिमुलेशन और अधिक के लिए SIGORA Premium आज़माएं।",
+        "You’re all set to start tracking your money, setting goals and understanding your finances better. Want to unlock more? Try Sigora Premium for advanced AI insights, forecasting, What-If simulations and more.": "अब आप अपने पैसे को ट्रैक करने, लक्ष्य तय करने और अपनी वित्तीय स्थिति को बेहतर समझने के लिए तैयार हैं। और फीचर्स अनलॉक करना चाहते हैं? उन्नत AI इनसाइट्स, पूर्वानुमान, What-If सिमुलेशन और अधिक के लिए SIGORA Premium आज़माएं।",
+    },
+}
+for _lang, _items in _DASHBOARD_SYSTEM_I18N.items():
+    SIGORA_TRANSLATIONS.setdefault(_lang, {}).update(_items)
+    SIGORA_PHRASE_TRANSLATIONS.setdefault(_lang, {}).update(_items)
+
 
 def _sigora_language():
     lang = session.get("sigora_language", "en")
@@ -2411,6 +2437,24 @@ def read_alert(alert_id):
     return redirect(request.form.get("next") or "/dashboard")
 
 
+@app.route("/announcements/<int:alert_id>/clear", methods=["POST"])
+def clear_announcement_for_user(alert_id):
+    user = get_current_user()
+    if not user:
+        return redirect("/login")
+    clear_user_announcement(user["id"], alert_id)
+    return redirect("/announcements?cleared=1")
+
+
+@app.route("/announcements/clear-read", methods=["POST"])
+def clear_read_announcements_for_user():
+    user = get_current_user()
+    if not user:
+        return redirect("/login")
+    removed = clear_read_user_announcements(user["id"])
+    return redirect(f"/announcements?cleared_read={removed}")
+
+
 @app.route("/premium/subscribe", methods=["POST"])
 def premium_subscribe():
     user = get_current_user()
@@ -2814,6 +2858,29 @@ def admin_user_delete(user_id):
     return redirect("/admin/users?deleted=1")
 
 
+
+@app.route("/admin/staff", methods=["GET", "POST"])
+@admin_required(roles=("super_admin",))
+def admin_staff():
+    admin = _current_admin()
+    error = None
+    changed = None
+    if request.method == "POST":
+        try:
+            target_user_id = int(request.form.get("user_id", "0"))
+            new_role = request.form.get("role", "user").strip()
+            result = set_staff_role(target_user_id, new_role, admin["id"])
+            audit(admin["id"], "staff_role_changed", target_user_id,
+                  f"{result['old_role']}->{result['new_role']}; email={result['email']}", _admin_ip())
+            changed = f"{result['email']} is now {result['new_role'].replace('_',' ')}."
+        except Exception as exc:
+            error = str(exc)
+    q = request.args.get("q", "").strip()
+    return render_template("admin_staff.html", staff=list_staff_accounts(),
+                           candidates=search_staff_candidates(q), q=q,
+                           staff_error=error, staff_changed=changed)
+
+
 @app.route("/admin/coupons", methods=["GET","POST"])
 @admin_required()
 def admin_coupons():
@@ -2847,17 +2914,50 @@ def admin_support():
 @app.route("/admin/announcements", methods=["GET","POST"])
 @admin_required()
 def admin_announcements():
-    admin=_current_admin(); sent=None
-    if request.method=="POST":
-        title=request.form.get("title","").strip(); message=request.form.get("message","").strip(); link=request.form.get("link","").strip() or None; audience=request.form.get("audience","all")
-        if title and message:
-            translations={
-                "ta": translate_announcement_text(title,message,"ta"),
-                "hi": translate_announcement_text(title,message,"hi"),
+    admin = _current_admin()
+    sent = None
+    updated = None
+    error = None
+    if request.method == "POST":
+        action = request.form.get("action", "create")
+        title = request.form.get("title", "").strip()
+        message = request.form.get("message", "").strip()
+        link = request.form.get("link", "").strip() or None
+        try:
+            if not title or not message:
+                raise ValueError("Title and message are required.")
+            translations = {
+                "ta": translate_announcement_text(title, message, "ta"),
+                "hi": translate_announcement_text(title, message, "hi"),
             }
-            sent=create_announcement(admin["id"],title,message,link,audience,translations=translations)
-            audit(admin["id"],"announcement_sent",details=f"audience={audience}; recipients={sent}; title={title}; localized=ta,hi",ip_address=_admin_ip())
-    return render_template("admin_announcements.html", announcements=list_announcements(), sent=sent)
+            if action == "update":
+                announcement_id = int(request.form.get("announcement_id", "0"))
+                affected = update_announcement(announcement_id, title, message, link, translations=translations)
+                updated = announcement_id
+                audit(admin["id"], "announcement_edited", details=f"announcement_id={announcement_id}; recipient_copies={affected}; title={title}; localized=ta,hi", ip_address=_admin_ip())
+            else:
+                audience = request.form.get("audience", "all")
+                sent = create_announcement(admin["id"], title, message, link, audience, translations=translations)
+                audit(admin["id"], "announcement_sent", details=f"audience={audience}; recipients={sent}; title={title}; localized=ta,hi", ip_address=_admin_ip())
+        except Exception as exc:
+            error = str(exc)
+    edit_id = request.args.get("edit", "").strip()
+    edit_announcement = None
+    if edit_id.isdigit():
+        edit_announcement = get_announcement(int(edit_id))
+    return render_template("admin_announcements.html", announcements=list_announcements(), sent=sent,
+                           updated=updated, admin_error=error, edit_announcement=edit_announcement)
+
+
+@app.route("/admin/announcements/<int:announcement_id>/delete", methods=["POST"])
+@admin_required(roles=("super_admin",))
+def admin_announcement_delete(announcement_id):
+    admin = _current_admin()
+    result = delete_announcement(announcement_id)
+    if result:
+        audit(admin["id"], "announcement_deleted", details=f"announcement_id={announcement_id}; removed_recipient_copies={result['removed_alerts']}; title={result['title']}", ip_address=_admin_ip())
+        return redirect(f"/admin/announcements?deleted={result['removed_alerts']}")
+    return redirect("/admin/announcements?delete_missing=1")
 
 
 @app.route("/admin/payments")

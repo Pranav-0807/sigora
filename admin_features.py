@@ -76,6 +76,7 @@ def ensure_admin_schema():
             cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS message_ta TEXT")
             cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS title_hi VARCHAR(180)")
             cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS message_hi TEXT")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS payment_events (
                     id BIGSERIAL PRIMARY KEY,
@@ -317,6 +318,92 @@ def add_admin_note(user_id, admin_user_id, note):
     finally: conn.close()
 
 
+
+def list_staff_accounts():
+    """Return all privileged accounts for the super-admin staff console."""
+    ensure_admin_schema()
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id,name,email,role,account_status,last_login_at,created_at
+                FROM users
+                WHERE role IN ('super_admin','admin','support')
+                ORDER BY CASE role WHEN 'super_admin' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+                         LOWER(COALESCE(name,'')), LOWER(email)
+            """)
+            rows = cur.fetchall()
+        return [
+            {"id":r[0],"name":r[1],"email":r[2],"role":r[3],"account_status":r[4],
+             "last_login_at":r[5],"created_at":r[6]}
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def search_staff_candidates(query="", limit=40):
+    """Search normal user accounts that can be appointed as staff."""
+    ensure_admin_schema()
+    q = (query or "").strip()
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            if q:
+                like = f"%{q}%"
+                cur.execute("""
+                    SELECT id,name,email,role,account_status,last_login_at,created_at
+                    FROM users
+                    WHERE role='user' AND (name ILIKE %s OR email ILIKE %s)
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                """, (like, like, limit))
+            else:
+                cur.execute("""
+                    SELECT id,name,email,role,account_status,last_login_at,created_at
+                    FROM users
+                    WHERE role='user'
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                """, (limit,))
+            rows = cur.fetchall()
+        return [
+            {"id":r[0],"name":r[1],"email":r[2],"role":r[3],"account_status":r[4],
+             "last_login_at":r[5],"created_at":r[6]}
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def set_staff_role(target_user_id, new_role, acting_admin_id):
+    """Assign Admin/Support or demote to User; super-admin accounts are protected."""
+    if new_role not in {'user','support','admin'}:
+        raise ValueError('Unsupported staff role.')
+    if int(target_user_id) == int(acting_admin_id):
+        raise ValueError('You cannot change your own role from the staff console.')
+    ensure_admin_schema()
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT role,email FROM users WHERE id=%s FOR UPDATE", (target_user_id,))
+            row = cur.fetchone()
+            if not row:
+                raise ValueError('User not found.')
+            old_role, email = row
+            if old_role == 'super_admin':
+                raise ValueError('Super-admin accounts are protected and cannot be changed here.')
+            if old_role not in {'user','support','admin'}:
+                raise ValueError('This account role cannot be changed here.')
+            cur.execute("UPDATE users SET role=%s WHERE id=%s", (new_role, target_user_id))
+        conn.commit()
+        return {"old_role": old_role, "new_role": new_role, "email": email}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
 def feature_analytics():
     ensure_admin_schema(); conn=get_connection()
     try:
@@ -390,6 +477,82 @@ def list_announcements(limit=50):
         return [{"id":r[0],"title":r[1],"message":r[2],"link":r[3],"audience":r[4],"recipients":r[5],"created_at":r[6]} for r in rows]
     finally: conn.close()
 
+
+
+
+def get_announcement(announcement_id):
+    ensure_admin_schema()
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id,title,message,title_ta,message_ta,title_hi,message_hi,link,audience,recipients,created_at,updated_at
+                FROM admin_announcements WHERE id=%s
+            """, (announcement_id,))
+            r = cur.fetchone()
+        if not r:
+            return None
+        return {"id":r[0],"title":r[1],"message":r[2],"title_ta":r[3],"message_ta":r[4],
+                "title_hi":r[5],"message_hi":r[6],"link":r[7],"audience":r[8],
+                "recipients":r[9],"created_at":r[10],"updated_at":r[11]}
+    finally:
+        conn.close()
+
+
+def update_announcement(announcement_id, title, message, link=None, translations=None):
+    """Edit announcement content without changing its original recipient audience."""
+    translations = translations or {}
+    ta = translations.get('ta') or {}
+    hi = translations.get('hi') or {}
+    ensure_admin_schema()
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM admin_announcements WHERE id=%s FOR UPDATE", (announcement_id,))
+            if not cur.fetchone():
+                raise ValueError('Announcement not found.')
+            cur.execute("""
+                UPDATE admin_announcements
+                SET title=%s,message=%s,title_ta=%s,message_ta=%s,title_hi=%s,message_hi=%s,
+                    link=%s,updated_at=CURRENT_TIMESTAMP
+                WHERE id=%s
+            """, (title,message,ta.get('title'),ta.get('message'),hi.get('title'),hi.get('message'),link,announcement_id))
+            # Keep denormalized alert fallbacks/link in sync for dashboard alerts and older render paths.
+            cur.execute("""
+                UPDATE alerts SET title=%s,message=%s,link=%s
+                WHERE announcement_id=%s
+            """, (title,message,link,announcement_id))
+            affected = cur.rowcount
+        conn.commit()
+        return affected
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def delete_announcement(announcement_id):
+    """Permanently remove one announcement and every recipient copy."""
+    ensure_admin_schema()
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT title FROM admin_announcements WHERE id=%s FOR UPDATE", (announcement_id,))
+            row = cur.fetchone()
+            if not row:
+                return None
+            title = row[0]
+            cur.execute("DELETE FROM alerts WHERE announcement_id=%s", (announcement_id,))
+            removed_alerts = cur.rowcount
+            cur.execute("DELETE FROM admin_announcements WHERE id=%s", (announcement_id,))
+        conn.commit()
+        return {"title": title, "removed_alerts": removed_alerts}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 def system_health():
     health={}

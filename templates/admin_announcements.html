@@ -1,1 +1,21 @@
-{% extends 'admin_base.html' %}{% block title %}Announcements{% endblock %}{% block heading %}Announcements{% endblock %}{% block content %}{% if sent is not none %}<div class="flash">Announcement delivered to {{ sent }} users.</div>{% endif %}<div class="card section"><h2>Send in-app announcement</h2><p class="muted">Write in English. SIGORA automatically creates Tamil and Hindi versions when you send, and each user sees the announcement in their selected app language.</p><form method="post" class="stack"><input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}"><input name="title" required placeholder="Title"><textarea name="message" required placeholder="Message"></textarea><div class="row"><div><select name="audience"><option value="all">All active users</option><option value="free">Free users</option><option value="premium">Premium users</option></select></div><div><input name="link" placeholder="Optional link, e.g. /premium"></div><div><button class="btn">Send announcement</button></div></div></form></div><div class="section"><table><tr><th>When</th><th>Title</th><th>Audience</th><th>Recipients</th><th>Message</th></tr>{% for a in announcements %}<tr><td>{{ a.created_at }}</td><td>{{ a.title }}</td><td>{{ a.audience }}</td><td>{{ a.recipients }}</td><td>{{ a.message }}</td></tr>{% else %}<tr><td colspan="5">No announcements sent.</td></tr>{% endfor %}</table></div>{% endblock %}
+{% extends 'admin_base.html' %}{% block title %}Announcements{% endblock %}{% block heading %}Announcements{% endblock %}{% block content %}
+{% if sent is not none %}<div class="flash">Announcement delivered to {{ sent }} users.</div>{% endif %}
+{% if updated %}<div class="flash">Announcement #{{ updated }} updated for all existing recipients.</div>{% endif %}
+{% if request.args.get('deleted') is not none %}<div class="flash">Announcement deleted globally. Removed {{ request.args.get('deleted') }} recipient copies.</div>{% endif %}
+{% if admin_error %}<div class="dangerbox">{{ admin_error }}</div>{% endif %}
+<div class="card section">
+  <h2>{{ 'Edit announcement' if edit_announcement else 'Send in-app announcement' }}</h2>
+  <p class="muted">Write in English. SIGORA automatically creates Tamil and Hindi versions. Editing changes the message for existing recipients but does not change the original audience.</p>
+  <form method="post" class="stack"><input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}"><input type="hidden" name="action" value="{{ 'update' if edit_announcement else 'create' }}">{% if edit_announcement %}<input type="hidden" name="announcement_id" value="{{ edit_announcement.id }}">{% endif %}
+    <input name="title" required placeholder="Title" value="{{ edit_announcement.title if edit_announcement else '' }}"><textarea name="message" required placeholder="Message">{{ edit_announcement.message if edit_announcement else '' }}</textarea>
+    <div class="row">
+      <div>{% if edit_announcement %}<input value="Audience: {{ edit_announcement.audience }} (locked after send)" disabled>{% else %}<select name="audience"><option value="all">All active users</option><option value="free">Free users</option><option value="premium">Premium users</option></select>{% endif %}</div>
+      <div><input name="link" placeholder="Optional link, e.g. /premium" value="{{ edit_announcement.link if edit_announcement and edit_announcement.link else '' }}"></div>
+      <div><button class="btn">{{ 'Save changes' if edit_announcement else 'Send announcement' }}</button>{% if edit_announcement %} <a class="btn secondary" href="/admin/announcements">Cancel</a>{% endif %}</div>
+    </div>
+  </form>
+</div>
+<div class="section"><table><tr><th>When</th><th>Title</th><th>Audience</th><th>Recipients</th><th>Message</th><th>Actions</th></tr>
+{% for a in announcements %}<tr><td>{{ a.created_at }}</td><td>{{ a.title }}</td><td>{{ a.audience }}</td><td>{{ a.recipients }}</td><td>{{ a.message }}</td><td class="nowrap"><a class="btn secondary" href="/admin/announcements?edit={{ a.id }}">Edit</a>{% if admin_identity and admin_identity.role == 'super_admin' %}<form method="post" action="/admin/announcements/{{ a.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this announcement for every recipient? This cannot be undone.')"><input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}"><button class="btn danger" type="submit">Delete</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6">No announcements sent.</td></tr>{% endfor %}</table></div>
+{% endblock %}

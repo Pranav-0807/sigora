@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS alerts (
 ALTER TABLE alerts ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMP;
 
 CREATE INDEX IF NOT EXISTS idx_alerts_user_created ON alerts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_announcement_id ON alerts(announcement_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_fingerprint
 ON alerts(user_id, fingerprint) WHERE fingerprint IS NOT NULL;
 
@@ -305,8 +306,10 @@ CREATE TABLE IF NOT EXISTS admin_announcements (
     link VARCHAR(255),
     audience VARCHAR(30) NOT NULL DEFAULT 'all',
     recipients INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
 );
+ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS payment_events (
     id BIGSERIAL PRIMARY KEY,

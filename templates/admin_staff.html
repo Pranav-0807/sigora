@@ -1,0 +1,28 @@
+{% extends 'admin_base.html' %}
+{% block title %}Staff{% endblock %}
+{% block heading %}Staff management{% endblock %}
+{% block content %}
+{% if staff_changed %}<div class="flash">{{ staff_changed }}</div>{% endif %}
+{% if staff_error %}<div class="dangerbox">{{ staff_error }}</div>{% endif %}
+<div class="card section">
+  <h2>Appoint staff</h2>
+  <p class="muted">Only the super admin can change staff roles. Search an existing Sigora account, then appoint it as Admin or Support.</p>
+  <form method="get" class="row" style="margin-top:14px"><div><input name="q" value="{{ q }}" placeholder="Search by name or email"></div><div style="flex:0 0 auto"><button class="btn">Search</button></div></form>
+</div>
+<div class="section">
+  <h2>Users available to appoint</h2>
+  <table><tr><th>User</th><th>Status</th><th>Joined</th><th>Appoint</th></tr>
+  {% for u in candidates %}<tr><td><strong>{{ u.name or '—' }}</strong><br><span class="muted">{{ u.email }}</span></td><td><span class="pill">{{ u.account_status }}</span></td><td>{{ u.created_at or '—' }}</td><td>
+    <form method="post" class="row" onsubmit="return confirm('Change this user\'s staff role?')"><input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}"><input type="hidden" name="user_id" value="{{ u.id }}"><select name="role"><option value="support">Support</option><option value="admin">Admin</option></select><button class="btn">Appoint</button></form>
+  </td></tr>{% else %}<tr><td colspan="4">No matching user accounts.</td></tr>{% endfor %}</table>
+</div>
+<div class="section">
+  <h2>Current staff</h2>
+  <table><tr><th>Staff member</th><th>Role</th><th>Status</th><th>Last login</th><th>Control</th></tr>
+  {% for u in staff %}<tr><td><strong>{{ u.name or '—' }}</strong><br><span class="muted">{{ u.email }}</span></td><td><span class="pill">{{ u.role }}</span></td><td>{{ u.account_status }}</td><td>{{ u.last_login_at or '—' }}</td><td>
+    {% if u.role == 'super_admin' %}<span class="muted">Protected</span>
+    {% else %}<form method="post" class="row" onsubmit="return confirm('Apply this role change?')"><input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}"><input type="hidden" name="user_id" value="{{ u.id }}"><select name="role"><option value="{{ u.role }}">Keep {{ u.role }}</option><option value="admin">Admin</option><option value="support">Support</option><option value="user">Demote to user</option></select><button class="btn secondary">Update</button></form>{% endif %}
+  </td></tr>{% endfor %}</table>
+</div>
+<div class="warning section"><strong>Role boundaries</strong><br>Admins and Support cannot manage staff. Super-admin accounts cannot be demoted from this page, and you cannot change your own role here.</div>
+{% endblock %}
