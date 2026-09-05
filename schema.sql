@@ -307,9 +307,15 @@ CREATE TABLE IF NOT EXISTS admin_announcements (
     audience VARCHAR(30) NOT NULL DEFAULT 'all',
     recipients INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP
+    updated_at TIMESTAMP,
+    is_system BOOLEAN NOT NULL DEFAULT FALSE,
+    system_key VARCHAR(80)
 );
 ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;
+ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS system_key VARCHAR(80);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_announcements_system_key
+ON admin_announcements(system_key) WHERE system_key IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS payment_events (
     id BIGSERIAL PRIMARY KEY,

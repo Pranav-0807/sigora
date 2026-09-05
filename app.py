@@ -90,6 +90,7 @@ from product_features import (
     mark_alert_read,
     clear_user_announcement,
     clear_read_user_announcements,
+    send_lifecycle_announcement,
     sync_financial_alerts,
     send_email_alert,
     send_transactional_email,
@@ -2047,6 +2048,7 @@ def signup():
         currency, _ = currency_for_country(country)
         user_id = create_user(name, email, password, currency=currency, country=country)
         session["user_id"] = user_id
+        send_lifecycle_announcement(user_id, "free_welcome")
         return redirect("/dashboard")
 
     return render_template("signup.html", countries=COUNTRIES)

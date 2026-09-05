@@ -25,7 +25,7 @@
       <h2>{{ item.title }}</h2>
       <p>{{ item.message }}</p>
       <div class="announcement-inbox-actions">
-        {% if item.link %}<a href="{{ item.link }}">{% if sigora_language == 'ta' %}திற →{% elif sigora_language == 'hi' %}खोलें →{% else %}Open →{% endif %}</a>{% endif %}
+        {% if item.link %}<a href="{{ item.link }}">{% if item.system_key == 'lifecycle-free-welcome-v1' %}{% if sigora_language == 'ta' %}Premium-ஐ பாருங்கள் →{% elif sigora_language == 'hi' %}Premium देखें →{% else %}Explore Premium →{% endif %}{% else %}{% if sigora_language == 'ta' %}திற →{% elif sigora_language == 'hi' %}खोलें →{% else %}Open →{% endif %}{% endif %}</a>{% endif %}
         {% if not item.is_read %}
         <form method="post" action="/alerts/{{ item.id }}/read"><input type="hidden" name="next" value="/announcements"><button type="submit">{% if sigora_language == 'ta' %}படித்ததாக குறி{% elif sigora_language == 'hi' %}पढ़ा हुआ चिह्नित करें{% else %}Mark as read{% endif %}</button></form>
         {% else %}

@@ -34,6 +34,8 @@ def ensure_feature_schema():
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS razorpay_subscription_id VARCHAR(120)")
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS razorpay_subscription_status VARCHAR(40)")
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_cancel_at_cycle_end BOOLEAN DEFAULT FALSE")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(30) NOT NULL DEFAULT 'user'")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status VARCHAR(30) NOT NULL DEFAULT 'active'")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS password_reset_tokens (
                     id SERIAL PRIMARY KEY,
@@ -119,6 +121,33 @@ def ensure_feature_schema():
             cur.execute("ALTER TABLE alerts ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMP")
             cur.execute("ALTER TABLE alerts ADD COLUMN IF NOT EXISTS announcement_id BIGINT")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_alerts_announcement_id ON alerts(announcement_id)")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS admin_announcements (
+                    id BIGSERIAL PRIMARY KEY,
+                    admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    title VARCHAR(180) NOT NULL,
+                    message TEXT NOT NULL,
+                    title_ta VARCHAR(180),
+                    message_ta TEXT,
+                    title_hi VARCHAR(180),
+                    message_hi TEXT,
+                    link VARCHAR(255),
+                    audience VARCHAR(30) NOT NULL DEFAULT 'all',
+                    recipients INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP,
+                    is_system BOOLEAN NOT NULL DEFAULT FALSE,
+                    system_key VARCHAR(80)
+                )
+            """)
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS title_ta VARCHAR(180)")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS message_ta TEXT")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS title_hi VARCHAR(180)")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS message_hi TEXT")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS system_key VARCHAR(80)")
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_announcements_system_key ON admin_announcements(system_key) WHERE system_key IS NOT NULL")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS financial_accounts (
                     id SERIAL PRIMARY KEY,
@@ -489,6 +518,123 @@ def create_alert(user_id, title, message, alert_type="info", link=None, fingerpr
         return None
 
 
+_LIFECYCLE_ANNOUNCEMENTS = {
+    "free_welcome": {
+        "system_key": "lifecycle-free-welcome-v1",
+        "audience": "free",
+        "link": "/premium",
+        "en": {
+            "title": "Welcome to Sigora 👋",
+            "message": (
+                "Start with the essentials: track spending, budgets and goals, and see your money more clearly. "
+                "Free gets you moving. When you want Sigora to think harder, Premium unlocks advanced AI insights, "
+                "Financial Health Score, forecasting, predictive budget risks, What-If simulations and more."
+            ),
+        },
+        "ta": {
+            "title": "Sigora-க்கு வரவேற்கிறோம் 👋",
+            "message": (
+                "அடிப்படையிலிருந்து தொடங்குங்கள்: செலவுகள், பட்ஜெட்டுகள் மற்றும் இலக்குகளை கண்காணித்து உங்கள் பணநிலையை தெளிவாகப் பாருங்கள். "
+                "Free உங்களை தொடங்கச் செய்கிறது. Sigora இன்னும் ஆழமாக சிந்திக்க வேண்டும் என்றால், Premium மூலம் மேம்பட்ட AI நுண்ணறிவுகள், "
+                "Financial Health Score, முன்கணிப்புகள், பட்ஜெட் அபாய முன்னறிவிப்புகள், What-If simulations மற்றும் பல அம்சங்களைத் திறக்கலாம்."
+            ),
+        },
+        "hi": {
+            "title": "Sigora में आपका स्वागत है 👋",
+            "message": (
+                "ज़रूरी चीज़ों से शुरू करें: खर्च, बजट और लक्ष्यों को ट्रैक करें और अपने पैसों को ज्यादा साफ़ तरीके से समझें। "
+                "Free आपको शुरुआत देता है। जब आप चाहते हैं कि Sigora और गहराई से सोचे, Premium उन्नत AI insights, "
+                "Financial Health Score, forecasting, predictive budget risks, What-If simulations और बहुत कुछ अनलॉक करता है।"
+            ),
+        },
+    },
+    "premium_welcome": {
+        "system_key": "lifecycle-premium-welcome-v1",
+        "audience": "premium",
+        "link": "/intelligence",
+        "en": {
+            "title": "Welcome to Sigora Premium ✦",
+            "message": (
+                "You're in. Sigora Premium is now active, with advanced AI insights, Financial Health Score, forecasting, "
+                "predictive budget risks, What-If simulations and more. Thanks for backing Sigora early. Make it count."
+            ),
+        },
+        "ta": {
+            "title": "Sigora Premium-க்கு வரவேற்கிறோம் ✦",
+            "message": (
+                "நீங்கள் உள்ளே வந்துவிட்டீர்கள். Sigora Premium இப்போது செயல்பாட்டில் உள்ளது. மேம்பட்ட AI நுண்ணறிவுகள், Financial Health Score, "
+                "முன்கணிப்புகள், பட்ஜெட் அபாய முன்னறிவிப்புகள், What-If simulations மற்றும் பல அம்சங்கள் இப்போது உங்களுக்குக் கிடைக்கும். "
+                "Sigora-வை ஆரம்பத்திலேயே ஆதரித்ததற்கு நன்றி. முழுமையாக பயன்படுத்துங்கள்."
+            ),
+        },
+        "hi": {
+            "title": "Sigora Premium में आपका स्वागत है ✦",
+            "message": (
+                "आप अंदर हैं। Sigora Premium अब सक्रिय है, जिसमें उन्नत AI insights, Financial Health Score, forecasting, "
+                "predictive budget risks, What-If simulations और बहुत कुछ शामिल है। Sigora को शुरुआती दौर में समर्थन देने के लिए धन्यवाद। इसका पूरा फायदा उठाइए।"
+            ),
+        },
+    },
+}
+
+
+def send_lifecycle_announcement(user_id, kind):
+    """Create a once-only built-in Sigora announcement for one user."""
+    cfg = _LIFECYCLE_ANNOUNCEMENTS.get(kind)
+    if not cfg:
+        return False
+    try:
+        ensure_feature_schema()
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, role, account_status FROM users WHERE id=%s", (user_id,))
+                user_row = cur.fetchone()
+                if not user_row or user_row[1] != "user" or user_row[2] != "active":
+                    return False
+
+                en, ta, hi = cfg["en"], cfg["ta"], cfg["hi"]
+                cur.execute("SELECT id FROM admin_announcements WHERE system_key=%s LIMIT 1", (cfg["system_key"],))
+                row = cur.fetchone()
+                if row:
+                    announcement_id = row[0]
+                    cur.execute("""
+                        UPDATE admin_announcements
+                        SET title=%s, message=%s, title_ta=%s, message_ta=%s, title_hi=%s, message_hi=%s,
+                            link=%s, audience=%s, is_system=TRUE, updated_at=CURRENT_TIMESTAMP
+                        WHERE id=%s
+                    """, (en["title"], en["message"], ta["title"], ta["message"], hi["title"], hi["message"],
+                          cfg["link"], cfg["audience"], announcement_id))
+                else:
+                    cur.execute("""
+                        INSERT INTO admin_announcements(
+                            admin_user_id,title,message,title_ta,message_ta,title_hi,message_hi,link,audience,recipients,is_system,system_key
+                        ) VALUES(NULL,%s,%s,%s,%s,%s,%s,%s,%s,0,TRUE,%s)
+                        RETURNING id
+                    """, (en["title"], en["message"], ta["title"], ta["message"], hi["title"], hi["message"],
+                          cfg["link"], cfg["audience"], cfg["system_key"]))
+                    announcement_id = cur.fetchone()[0]
+
+                cur.execute("""
+                    INSERT INTO alerts(user_id,title,message,alert_type,link,fingerprint,announcement_id)
+                    VALUES(%s,%s,%s,'info',%s,%s,%s)
+                    ON CONFLICT (user_id,fingerprint) WHERE fingerprint IS NOT NULL DO NOTHING
+                """, (user_id, en["title"], en["message"], cfg["link"], cfg["system_key"], announcement_id))
+                inserted = cur.rowcount > 0
+                if inserted:
+                    cur.execute("UPDATE admin_announcements SET recipients=recipients+1 WHERE id=%s", (announcement_id,))
+            conn.commit()
+            return inserted
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+    except Exception as exc:
+        print(f"Sigora lifecycle announcement skipped safely: {exc}")
+        return False
+
+
 def get_alerts(user_id, limit=8, language="en"):
     try:
         ensure_feature_schema()
@@ -539,7 +685,7 @@ def get_latest_unread_announcement(user_id, language="en"):
                            CASE WHEN %s='ta' THEN COALESCE(aa.message_ta,a.message)
                                 WHEN %s='hi' THEN COALESCE(aa.message_hi,a.message)
                                 ELSE a.message END,
-                           a.link, a.created_at
+                           a.link, a.created_at, aa.system_key
                     FROM alerts a
                     JOIN admin_announcements aa ON aa.id=a.announcement_id
                     WHERE a.user_id=%s AND a.is_read=FALSE
@@ -551,7 +697,7 @@ def get_latest_unread_announcement(user_id, language="en"):
             conn.close()
         if not r:
             return None
-        return {"id":r[0],"title":r[1],"message":r[2],"link":r[3],"created_at":str(r[4])}
+        return {"id":r[0],"title":r[1],"message":r[2],"link":r[3],"created_at":str(r[4]),"system_key":r[5]}
     except Exception as exc:
         print(f"Sigora announcement popup unavailable safely: {exc}")
         return None
@@ -573,7 +719,7 @@ def get_user_announcements(user_id, language="en", limit=50):
                            CASE WHEN %s='ta' THEN COALESCE(aa.message_ta,a.message)
                                 WHEN %s='hi' THEN COALESCE(aa.message_hi,a.message)
                                 ELSE a.message END AS localized_message,
-                           a.link, a.is_read, a.created_at
+                           a.link, a.is_read, a.created_at, aa.system_key
                     FROM alerts a
                     JOIN admin_announcements aa ON aa.id=a.announcement_id
                     WHERE a.user_id=%s
@@ -584,7 +730,7 @@ def get_user_announcements(user_id, language="en", limit=50):
         finally:
             conn.close()
         return [
-            {"id":r[0],"title":r[1],"message":r[2],"link":r[3],"is_read":bool(r[4]),"created_at":r[5]}
+            {"id":r[0],"title":r[1],"message":r[2],"link":r[3],"is_read":bool(r[4]),"created_at":r[5],"system_key":r[6]}
             for r in rows
         ]
     except Exception as exc:
@@ -1084,9 +1230,13 @@ def get_premium_status(user_id):
 
 def set_premium_status(user_id, active, expires_at=None, subscription_status=None):
     ensure_feature_schema()
+    first_activation = False
     conn = get_connection()
     try:
         with conn.cursor() as cur:
+            cur.execute("SELECT premium_started_at FROM users WHERE id=%s", (user_id,))
+            previous = cur.fetchone()
+            first_activation = bool(active and previous and previous[0] is None)
             if active:
                 cur.execute("""UPDATE users SET is_premium=TRUE,
                                premium_started_at=COALESCE(premium_started_at, CURRENT_TIMESTAMP),
@@ -1101,6 +1251,8 @@ def set_premium_status(user_id, active, expires_at=None, subscription_status=Non
         conn.commit()
     finally:
         conn.close()
+    if first_activation:
+        send_lifecycle_announcement(user_id, "premium_welcome")
 
 
 def mark_subscription_cancellation_requested(user_id, requested=True):

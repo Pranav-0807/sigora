@@ -77,6 +77,9 @@ def ensure_admin_schema():
             cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS title_hi VARCHAR(180)")
             cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS message_hi TEXT")
             cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE")
+            cur.execute("ALTER TABLE admin_announcements ADD COLUMN IF NOT EXISTS system_key VARCHAR(80)")
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_announcements_system_key ON admin_announcements(system_key) WHERE system_key IS NOT NULL")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS payment_events (
                     id BIGSERIAL PRIMARY KEY,
@@ -286,9 +289,12 @@ def set_account_status(user_id, status, reason=None):
 
 
 def set_user_premium(user_id, active):
-    ensure_admin_schema(); conn=get_connection()
+    ensure_admin_schema(); conn=get_connection(); first_activation=False
     try:
         with conn.cursor() as cur:
+            cur.execute("SELECT premium_started_at FROM users WHERE id=%s AND role='user'", (user_id,))
+            previous = cur.fetchone()
+            first_activation = bool(active and previous and previous[0] is None)
             if active:
                 cur.execute("""UPDATE users SET is_premium=TRUE,premium_started_at=COALESCE(premium_started_at,CURRENT_TIMESTAMP),
                                premium_expires_at=NULL,razorpay_subscription_status=COALESCE(razorpay_subscription_status,'admin_granted') WHERE id=%s AND role='user'""",(user_id,))
@@ -297,6 +303,9 @@ def set_user_premium(user_id, active):
                                razorpay_subscription_status='admin_revoked',premium_cancel_at_cycle_end=FALSE WHERE id=%s AND role='user'""",(user_id,))
         conn.commit()
     finally: conn.close()
+    if first_activation:
+        from product_features import send_lifecycle_announcement
+        send_lifecycle_announcement(user_id, "premium_welcome")
 
 
 def delete_managed_user(user_id):
@@ -473,7 +482,7 @@ def list_announcements(limit=50):
     ensure_admin_schema(); conn=get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id,title,message,link,audience,recipients,created_at FROM admin_announcements ORDER BY created_at DESC LIMIT %s",(limit,)); rows=cur.fetchall()
+            cur.execute("SELECT id,title,message,link,audience,recipients,created_at FROM admin_announcements WHERE COALESCE(is_system,FALSE)=FALSE ORDER BY created_at DESC LIMIT %s",(limit,)); rows=cur.fetchall()
         return [{"id":r[0],"title":r[1],"message":r[2],"link":r[3],"audience":r[4],"recipients":r[5],"created_at":r[6]} for r in rows]
     finally: conn.close()
 
@@ -487,7 +496,7 @@ def get_announcement(announcement_id):
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT id,title,message,title_ta,message_ta,title_hi,message_hi,link,audience,recipients,created_at,updated_at
-                FROM admin_announcements WHERE id=%s
+                FROM admin_announcements WHERE id=%s AND COALESCE(is_system,FALSE)=FALSE
             """, (announcement_id,))
             r = cur.fetchone()
         if not r:
@@ -508,7 +517,7 @@ def update_announcement(announcement_id, title, message, link=None, translations
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM admin_announcements WHERE id=%s FOR UPDATE", (announcement_id,))
+            cur.execute("SELECT id FROM admin_announcements WHERE id=%s AND COALESCE(is_system,FALSE)=FALSE FOR UPDATE", (announcement_id,))
             if not cur.fetchone():
                 raise ValueError('Announcement not found.')
             cur.execute("""
@@ -538,7 +547,7 @@ def delete_announcement(announcement_id):
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT title FROM admin_announcements WHERE id=%s FOR UPDATE", (announcement_id,))
+            cur.execute("SELECT title FROM admin_announcements WHERE id=%s AND COALESCE(is_system,FALSE)=FALSE FOR UPDATE", (announcement_id,))
             row = cur.fetchone()
             if not row:
                 return None

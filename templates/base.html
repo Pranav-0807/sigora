@@ -56,7 +56,7 @@
     <div class="sigora-announcement-foot">
       <span class="sigora-announcement-team">♥ Team SIGORA</span>
       <div class="sigora-announcement-actions">
-        {% if announcement_popup.link %}<a class="sigora-announcement-secondary" href="{{ announcement_popup.link }}" onclick="markSigoraAnnouncementRead()">{% if sigora_language == 'ta' %}திற →{% elif sigora_language == 'hi' %}खोलें →{% else %}Open →{% endif %}</a>{% endif %}
+        {% if announcement_popup.link %}<a class="sigora-announcement-secondary" href="{{ announcement_popup.link }}" onclick="markSigoraAnnouncementRead()">{% if announcement_popup.system_key == 'lifecycle-free-welcome-v1' %}{% if sigora_language == 'ta' %}Premium-ஐ பாருங்கள் →{% elif sigora_language == 'hi' %}Premium देखें →{% else %}Explore Premium →{% endif %}{% else %}{% if sigora_language == 'ta' %}திற →{% elif sigora_language == 'hi' %}खोलें →{% else %}Open →{% endif %}{% endif %}</a>{% endif %}
         <button class="sigora-announcement-primary" type="button" onclick="dismissSigoraAnnouncement()">{% if sigora_language == 'ta' %}புரிந்தது →{% elif sigora_language == 'hi' %}समझ गया →{% else %}Got it →{% endif %}</button>
       </div>
     </div>
